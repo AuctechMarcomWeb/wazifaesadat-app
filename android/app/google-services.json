@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "598449951150",
+    "project_id": "wazifaesadat-34485",
+    "storage_bucket": "wazifaesadat-34485.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:598449951150:android:ba09736a7c816da8ea383f",
+        "android_client_info": {
+          "package_name": "com.wazifaesadat"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "598449951150-tl4nn3mckhrgf22fqf1p182jncualhn1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA-S46B2_ZuVkBzaI84Nj4RbsM2qQFDSE4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "598449951150-tl4nn3mckhrgf22fqf1p182jncualhn1.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
