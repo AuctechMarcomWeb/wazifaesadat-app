@@ -18,7 +18,10 @@ import Svg, { Path } from 'react-native-svg';
 
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-
+import {
+  GoogleSignin,
+  statusCodes,
+} from '@react-native-google-signin/google-signin';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -27,7 +30,11 @@ import {
 import colors from '../../../themes/colors';
 import { FontFamily, FontSize } from '../../../themes/typography';
 import AppLayout from '../../../components/AppLayout/AppLayout';
-import { loginWithPassword, getProfile, loginWithGoogle } from '../../../api/auth'; // eslint-disable-line no-unused-vars
+import {
+  loginWithPassword,
+  getProfile,
+  loginWithGoogle,
+} from '../../../api/auth';
 import { loginSuccess, loginError } from '../../../redux/slice/userSlice';
 
 const GoogleLogoSvg = ({ size = 20 }) => (
@@ -51,6 +58,11 @@ const GoogleLogoSvg = ({ size = 20 }) => (
   </Svg>
 );
 
+GoogleSignin.configure({
+  webClientId:
+    '598449951150-tl4nn3mckhrgf22fqf1p182jncualhn1.apps.googleusercontent.com',
+  offlineAccess: false,
+});
 const LoginScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const [userId, setUserId] = useState('');
@@ -64,27 +76,20 @@ const LoginScreen = ({ navigation }) => {
 
   const isBusy = loading || googleLoading;
 
-  const getDashboardScreenName = role => {
-    const roleScreenMap = {
-      SuperAdmin: 'SuperAdminDashboard',
-      Admin: 'AdminDashboard',
-      ExecutiveMember: 'ExecutiveMemberDashboard',
-      OfficeBearer: 'OfficeBearerDashboard',
-      OfficeStaff: 'OfficeStaffDashboard',
-      LocalSecretary: 'LocalSecretaryDashboard',
-      Membership: 'MembershipDashboard',
-      WazifaUser: 'WazifaUserDashboard',
-    };
-    return roleScreenMap[role] || 'MembershipDashboard';
-  };
-
   const completeLoginSession = async (token, fallbackUser = null) => {
+    console.log('🔑 Saving token to AsyncStorage');
     await AsyncStorage.setItem('authToken', token);
     await new Promise(resolve => setTimeout(resolve, 400));
 
+    console.log('📡 Fetching profile...');
     const profileResult = await getProfile();
 
     if (profileResult.success) {
+      console.log('✅ Profile fetched:', {
+        isNew: profileResult.user?.isNew,
+        userId: profileResult.user?.userId,
+      });
+
       await AsyncStorage.setItem(
         'userData',
         JSON.stringify(profileResult.user),
@@ -96,6 +101,7 @@ const LoginScreen = ({ navigation }) => {
         role: profileResult.role,
       };
 
+      console.log('📤 Dispatching loginSuccess to Redux');
       dispatch(
         loginSuccess({
           token,
@@ -103,15 +109,26 @@ const LoginScreen = ({ navigation }) => {
         }),
       );
 
-      const targetScreen = getDashboardScreenName(
-        profileResult.role || profileResult.user?.role,
-      );
-      navigation?.replace?.(targetScreen) ??
-        navigation?.navigate?.(targetScreen);
+      // ✅ Check if new user needs profile creation
+      if (profileResult.user?.isNew) {
+        console.log('🔴 User is NEW - navigating to CreateProfile');
+        setTimeout(() => {
+          navigation?.navigate?.('CreateProfile');
+        }, 100);
+      } else {
+        console.log(
+          '🟢 User is existing - RootNavigation will handle redirect',
+        );
+      }
+
       return true;
     }
 
     if (fallbackUser) {
+      console.log('⚠️ Using fallback user:', {
+        isNew: fallbackUser?.isNew,
+      });
+
       await AsyncStorage.setItem('userData', JSON.stringify(fallbackUser));
       dispatch(
         loginSuccess({
@@ -119,9 +136,14 @@ const LoginScreen = ({ navigation }) => {
           user: fallbackUser,
         }),
       );
-      const targetScreen = getDashboardScreenName(fallbackUser.role);
-      navigation?.replace?.(targetScreen) ??
-        navigation?.navigate?.(targetScreen);
+
+      if (fallbackUser?.isNew) {
+        console.log('🔴 Fallback user is NEW - navigating to CreateProfile');
+        setTimeout(() => {
+          navigation?.navigate?.('CreateProfile');
+        }, 100);
+      }
+
       return true;
     }
 
@@ -165,32 +187,94 @@ const LoginScreen = ({ navigation }) => {
   };
 
   const handleGoogleLogin = async () => {
+    if (isBusy) return;
+
     setError('');
     setGoogleLoading(true);
 
     try {
-      // Project ID: 598449951150
-      // Installation: npm install @react-native-google-signin/google-signin
-      //
-      // Setup in App.js:
-      // import { GoogleSignin } from '@react-native-google-signin/google-signin';
-      // GoogleSignin.configure({
-      //   webClientId: '598449951150-xxxxx.apps.googleusercontent.com',
-      //   offlineAccess: true,
-      // });
-      //
-      // Then use:
-      // const { idToken } = await GoogleSignin.signIn();
-      // const result = await loginWithGoogle(idToken);
-      
-      setError(
-        'Google Sign-In configured with project ID 598449951150. Install @react-native-google-signin/google-signin to enable.',
-      );
+      console.log('🔵 Google Sign-In initiated');
+
+      // 1. Check Google Play Services
+      await GoogleSignin.hasPlayServices({
+        showPlayServicesUpdateDialog: true,
+      });
+
+      // 2. Open Google Sign-In
+      const response = await GoogleSignin.signIn();
+
+      // 3. Handle cancellation
+      if (response.type !== 'success') {
+        console.log('⚠️ Google Sign-In cancelled');
+        return;
+      }
+
+      // 4. Get Google ID Token
+      let idToken = response.data?.idToken;
+
+      // Fallback: Fetch token directly
+      if (!idToken) {
+        const tokens = await GoogleSignin.getTokens();
+        idToken = tokens?.idToken;
+      }
+
+      if (!idToken) {
+        throw new Error(
+          'Google ID token not received. Please check Google configuration.',
+        );
+      }
+
+      console.log('✅ Google ID Token received');
+
+      // 5. Send ID Token to Backend
+      console.log('📡 Sending token to backend...');
+      const loginResult = await loginWithGoogle(idToken);
+
+      console.log('📥 Google Login API Response:', {
+        success: loginResult?.success,
+        hasUser: !!loginResult?.user,
+        isNew: loginResult?.user?.isNew,
+      });
+
+      // 6. Normalize Backend Response
+      const responseData =
+        loginResult?.data?.data || loginResult?.data || loginResult;
+
+      const token =
+        responseData?.authToken || responseData?.token || loginResult?.token;
+
+      const user = responseData?.user || responseData;
+
+      // 7. Validate Backend Response
+      if (!loginResult?.success || !token) {
+        throw new Error(
+          loginResult?.message ||
+            responseData?.message ||
+            'Google login failed. Invalid server response.',
+        );
+      }
+
+      console.log('✅ Google login successful - completing session');
+
+      // 8. Save Login Session, Redux & Navigate
+      await completeLoginSession(token, user);
     } catch (err) {
-      const errorMsg =
-        err?.message || 'Google sign-in failed. Please try again.';
-      setError(errorMsg);
-      dispatch(loginError(errorMsg));
+      console.log('❌ Google Sign-In Error:', err);
+
+      if (err.code === statusCodes.SIGN_IN_CANCELLED) {
+        return;
+      }
+
+      let errorMessage = 'Google Sign-In failed. Please try again.';
+
+      if (err.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        errorMessage = 'Google Play Services is not available.';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+
+      setError(errorMessage);
+      dispatch(loginError(errorMessage));
     } finally {
       setGoogleLoading(false);
     }
@@ -246,7 +330,7 @@ const LoginScreen = ({ navigation }) => {
                 <View>
                   <Text style={styles.formTitle}>Welcome Back</Text>
                   <Text style={styles.formSubtitle}>
-                    Sign in with User ID, Email, Mobile, or Google
+                    Sign in with User ID, Email, or Google
                   </Text>
                 </View>
 
@@ -264,7 +348,7 @@ const LoginScreen = ({ navigation }) => {
               )}
 
               {/* User ID / Email / Mobile Field */}
-              <Text style={styles.label}>User ID / Email / Mobile</Text>
+              <Text style={styles.label}>User ID</Text>
               <View
                 style={[
                   styles.inputContainer,
@@ -282,7 +366,8 @@ const LoginScreen = ({ navigation }) => {
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter User ID, Email, or Mobile"
+                  // placeholder="Enter User ID, Email, or Mobile"
+                  placeholder="Enter User ID"
                   placeholderTextColor="#A0AAB0"
                   value={userId}
                   onChangeText={setUserId}
@@ -422,14 +507,6 @@ const LoginScreen = ({ navigation }) => {
                   <Text style={styles.signupLink}>Sign Up</Text>
                 </TouchableOpacity>
               </View>
-
-              {/* Security Tag */}
-              <View style={styles.securityContainer}>
-                <Icon name="shield-lock" size={14} color="#007A43" />
-                <Text style={styles.securityText}>
-                  Secure And Encrypted Login
-                </Text>
-              </View>
             </View>
 
             {/* Footer */}
@@ -536,7 +613,7 @@ const styles = StyleSheet.create({
   },
   mainContent: {
     paddingHorizontal: wp('5%'),
-    marginTop: -hp('2.5%'),
+    marginTop: -hp('4.5%'),
     zIndex: 3,
   },
   formCard: {

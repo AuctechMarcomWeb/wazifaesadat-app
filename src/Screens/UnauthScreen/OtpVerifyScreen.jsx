@@ -1,3 +1,6 @@
+
+
+
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -21,20 +24,17 @@ import {
 } from 'react-native-responsive-screen';
 
 import colors from '../../themes/colors';
-import { FontFamily, FontSize } from '../../themes/typography';
 import AppLayout from '../../components/AppLayout/AppLayout';
 import { loginSuccess } from '../../redux/slice/userSlice';
-import { verifySignupOtp, resendOtp } from '../../api/auth';
+import { registerWithOtp, verifyEmailOtp } from '../../api/auth';
 
-const OTP_LENGTH = 6;
+const OTP_LENGTH = 4;
 
 const OtpVerifyScreen = ({ navigation, route }) => {
   const dispatch = useDispatch();
-  const {
-    contact = 'your email / mobile',
-    channel = 'email',
-    fullName = '',
-  } = route?.params || {};
+  const { email = '', contact = '', channel = 'email' } = route?.params || {};
+
+  const targetEmail = (email || contact || '').trim().toLowerCase();
 
   const [digits, setDigits] = useState(Array(OTP_LENGTH).fill(''));
   const [focusedIndex, setFocusedIndex] = useState(0);
@@ -65,7 +65,7 @@ const OtpVerifyScreen = ({ navigation, route }) => {
       return;
     }
 
-    // Support pasting full OTP
+    // Support pasting full 4-digit OTP
     if (clean.length > 1) {
       const next = Array(OTP_LENGTH).fill('');
       clean
@@ -100,6 +100,11 @@ const OtpVerifyScreen = ({ navigation, route }) => {
     setInfoMessage('');
     const otpCode = digits.join('');
 
+    if (!targetEmail) {
+      setError('Email address is missing. Please go back and try again.');
+      return;
+    }
+
     if (otpCode.length < OTP_LENGTH) {
       setError(`Please enter all ${OTP_LENGTH} digits of the OTP`);
       return;
@@ -108,7 +113,7 @@ const OtpVerifyScreen = ({ navigation, route }) => {
     setVerifying(true);
 
     try {
-      const result = await verifySignupOtp(contact, otpCode, fullName, '');
+      const result = await verifyEmailOtp(targetEmail, otpCode);
 
       if (result.success && result.token) {
         await AsyncStorage.setItem('authToken', result.token);
@@ -116,10 +121,27 @@ const OtpVerifyScreen = ({ navigation, route }) => {
           await AsyncStorage.setItem('userData', JSON.stringify(result.user));
           dispatch(loginSuccess({ token: result.token, user: result.user }));
         }
-        navigation?.replace?.('MembershipDashboard') ??
-          navigation?.navigate?.('MembershipDashboard');
+
+        // ✅ Debug: Log the user object to verify isNew is present
+        console.log('🔍 Verification Result:', {
+          success: result.success,
+          userExists: !!result.user,
+          userKeys: result.user ? Object.keys(result.user) : [],
+          isNewValue: result.user?.isNew,
+        });
+
+        // ✅ Check isNew and navigate immediately
+        if (result.user?.isNew) {
+          console.log('🔄 Navigating to CreateProfile - isNew is true');
+          navigation?.replace?.('CreateProfile');
+        } else {
+          console.log('✅ Navigating to Login - isNew is false or not set');
+          navigation?.replace?.('Login');
+        }
       } else {
-        setError(result.message || 'OTP verification failed. Please try again.');
+        setError(
+          result.message || 'OTP verification failed. Please try again.',
+        );
       }
     } catch (err) {
       setError(err?.message || 'OTP verification failed. Please try again.');
@@ -132,15 +154,21 @@ const OtpVerifyScreen = ({ navigation, route }) => {
     if (secondsLeft > 0 || resending || verifying) return;
     setError('');
     setInfoMessage('');
+
+    if (!targetEmail) {
+      setError('Email address is missing. Please go back and try again.');
+      return;
+    }
+
     setResending(true);
 
     try {
-      const result = await resendOtp(contact, channel);
+      const result = await registerWithOtp(targetEmail);
 
       if (result.success) {
         setDigits(Array(OTP_LENGTH).fill(''));
         setSecondsLeft(60);
-        setInfoMessage(`A new verification code was sent to ${contact}.`);
+        setInfoMessage(`A new 4-digit code was sent to ${targetEmail}.`);
         inputRefs.current[0]?.focus();
       } else {
         setError(result.message || 'Could not resend OTP.');
@@ -190,8 +218,8 @@ const OtpVerifyScreen = ({ navigation, route }) => {
               <Text style={styles.headerTitle}>OTP Verification</Text>
               <Text style={styles.headerSubtitle}>
                 {channel === 'mobile'
-                  ? '6-digit SMS code sent to your mobile'
-                  : '6-digit verification code sent to your email'}
+                  ? '4-digit SMS code sent to your mobile'
+                  : '4-digit verification code sent to your email'}
               </Text>
             </View>
           </LinearGradient>
@@ -199,14 +227,12 @@ const OtpVerifyScreen = ({ navigation, route }) => {
           {/* Card */}
           <View style={styles.mainContent}>
             <View style={styles.formCard}>
-              <Text style={styles.cardTitle}>
-                {fullName
-                  ? `Hi ${fullName}, enter OTP`
-                  : 'Enter Verification Code'}
-              </Text>
+              <Text style={styles.cardTitle}>Enter Verification Code</Text>
               <Text style={styles.cardSubtitle}>
                 Code sent to{' '}
-                <Text style={styles.contactHighlight}>{contact}</Text>
+                <Text style={styles.contactHighlight}>
+                  {targetEmail || 'your email'}
+                </Text>
               </Text>
 
               {!!error && (
@@ -223,7 +249,7 @@ const OtpVerifyScreen = ({ navigation, route }) => {
                 </View>
               )}
 
-              {/* 6-Box OTP Input */}
+              {/* 4-Box OTP Input */}
               <View style={styles.otpRow}>
                 {digits.map((digit, index) => (
                   <TextInput
@@ -364,12 +390,12 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: wp('5%'),
-    fontFamily: FontFamily.bold,
+    fontFamily: 'Poppins-Bold',
     color: '#FFFFFF',
   },
   headerSubtitle: {
-    fontSize: FontSize.sm,
-    fontFamily: FontFamily.regular,
+    fontSize: 12,
+    fontFamily: 'Poppins-Regular',
     color: 'rgba(255,255,255,0.85)',
     marginTop: 4,
     textAlign: 'center',
@@ -393,18 +419,18 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: wp('4.6%'),
-    fontFamily: FontFamily.bold,
+    fontFamily: 'Poppins-Bold',
     color: '#123F2A',
   },
   cardSubtitle: {
-    fontSize: FontSize.sm,
-    fontFamily: FontFamily.regular,
+    fontSize: 12,
+    fontFamily: 'Poppins-Regular',
     color: '#7A8C82',
     marginTop: 4,
     marginBottom: hp('2%'),
   },
   contactHighlight: {
-    fontFamily: FontFamily.semiBold,
+    fontFamily: 'Poppins-SemiBold',
     color: '#1F3329',
   },
   errorContainer: {
@@ -420,8 +446,8 @@ const styles = StyleSheet.create({
   errorText: {
     flex: 1,
     color: '#D93636',
-    fontSize: FontSize.sm,
-    fontFamily: FontFamily.medium,
+    fontSize: 12,
+    fontFamily: 'Poppins-Medium',
     marginLeft: 8,
   },
   infoContainer: {
@@ -437,27 +463,28 @@ const styles = StyleSheet.create({
   infoText: {
     flex: 1,
     color: '#006B3B',
-    fontSize: FontSize.sm,
-    fontFamily: FontFamily.medium,
+    fontSize: 12,
+    fontFamily: 'Poppins-Medium',
     marginLeft: 8,
   },
   otpRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    gap: wp('3.5%'),
     marginBottom: hp('2.4%'),
   },
   otpBox: {
-    width: wp('11.5%'),
-    height: wp('13%'),
-    maxWidth: 50,
-    maxHeight: 56,
+    width: wp('14%'),
+    height: wp('15%'),
+    maxWidth: 58,
+    maxHeight: 62,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: '#DCE5E0',
     backgroundColor: '#F8FAF9',
     textAlign: 'center',
-    fontSize: wp('5%'),
-    fontFamily: FontFamily.bold,
+    fontSize: wp('5.5%'),
+    fontFamily: 'Poppins-Bold',
     color: '#123F2A',
   },
   otpBoxFocused: {
@@ -487,8 +514,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   verifyButtonText: {
-    fontSize: FontSize.base,
-    fontFamily: FontFamily.bold,
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
@@ -506,17 +533,17 @@ const styles = StyleSheet.create({
     marginTop: hp('2%'),
   },
   timerText: {
-    fontSize: FontSize.sm,
-    fontFamily: FontFamily.regular,
+    fontSize: 12,
+    fontFamily: 'Poppins-Regular',
     color: '#7A8C82',
   },
   timerBold: {
-    fontFamily: FontFamily.semiBold,
+    fontFamily: 'Poppins-SemiBold',
     color: '#1F3329',
   },
   resendLink: {
-    fontSize: FontSize.sm,
-    fontFamily: FontFamily.bold,
+    fontSize: 12,
+    fontFamily: 'Poppins-Bold',
     color: '#006B3B',
   },
 });

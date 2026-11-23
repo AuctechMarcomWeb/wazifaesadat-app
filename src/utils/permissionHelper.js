@@ -11,12 +11,6 @@ import { MENU_CONFIG, ROLE_MENUS, getModulesForMenu } from '../config/menuConfig
  * @param {string} userRole - User's role
  * @returns {Array} Filtered menu items that user has access to
  */
-/**
- * Get visible menus based on user permissions
- * @param {Array} userPermissions - Array of permission objects from API
- * @param {string} userRole - User's role
- * @returns {Array} Filtered menu items that user has access to
- */
 export const getVisibleMenus = (userPermissions, userRole) => {
   console.log('🔍 getVisibleMenus called with:');
   console.log('   - Permissions:', userPermissions?.length, 'items');
@@ -35,7 +29,7 @@ export const getVisibleMenus = (userPermissions, userRole) => {
 
   // Regular users: check permissions
   if (!userPermissions || userPermissions.length === 0) {
-    console.log('❌ No permissions found - no menus shown');
+    console.log('⚠️  User has no permissions - returning empty menu. Backend should provide default permissions.');
     return [];
   }
 

@@ -22,61 +22,39 @@ import {
 import colors from '../../themes/colors';
 import { FontFamily, FontSize } from '../../themes/typography';
 import AppLayout from '../../components/AppLayout/AppLayout';
-import { signupWithOtp } from '../../api/auth';
+import { registerWithOtp } from '../../api/auth';
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const SignupScreen = ({ navigation }) => {
-  const [fullName, setFullName] = useState('');
-  const [contact, setContact] = useState(''); // Email or Mobile Number
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState('');
   const [focusedField, setFocusedField] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleSendOtp = async () => {
     setError('');
-    const trimmedName = fullName.trim();
-    const trimmedContact = contact.trim();
+    const trimmedEmail = email.trim().toLowerCase();
 
-    if (!trimmedName) {
-      setError('Please enter your full name');
+    if (!trimmedEmail) {
+      setError('Please enter your email address');
       return;
     }
 
-    if (!trimmedContact) {
-      setError('Please enter your Email or Mobile Number');
-      return;
-    }
-
-    const isEmail = trimmedContact.includes('@');
-    const digitsOnly = trimmedContact.replace(/\D/g, '');
-    if (!isEmail && digitsOnly.length < 10) {
-      setError('Please enter a valid Email or 10-digit Mobile Number');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
+    if (!EMAIL_REGEX.test(trimmedEmail)) {
+      setError('Please enter a valid email address');
       return;
     }
 
     setLoading(true);
 
     try {
-      const result = await signupWithOtp(trimmedName, trimmedContact, password);
+      const result = await registerWithOtp(trimmedEmail);
 
       if (result.success) {
         navigation?.navigate?.('OtpVerify', {
-          fullName: trimmedName,
-          contact: trimmedContact,
-          channel: result.channel,
-          password,
+          email: result.email || trimmedEmail,
+          channel: result.channel || 'email',
         });
       } else {
         setError(result.message || 'Unable to send OTP. Please try again.');
@@ -127,13 +105,6 @@ const SignupScreen = ({ navigation }) => {
                   resizeMode="contain"
                 />
               </View>
-
-              <View style={styles.headerBadge}>
-                <Icon name="account-plus-outline" size={13} color="#F4D47B" />
-                <Text style={styles.headerBadgeText}>
-                  Create Account • OTP Verification
-                </Text>
-              </View>
             </View>
           </LinearGradient>
 
@@ -144,12 +115,12 @@ const SignupScreen = ({ navigation }) => {
                 <View>
                   <Text style={styles.formTitle}>Create Account</Text>
                   <Text style={styles.formSubtitle}>
-                    Register with Email or Mobile to get OTP
+                    Enter your email to receive an OTP
                   </Text>
                 </View>
 
                 <View style={styles.badgeIcon}>
-                  <Icon name="shield-account" size={22} color="#007A43" />
+                  <Icon name="email-fast-outline" size={22} color="#007A43" />
                 </View>
               </View>
 
@@ -160,124 +131,28 @@ const SignupScreen = ({ navigation }) => {
                 </View>
               )}
 
-              {/* Full Name */}
-              <Text style={styles.label}>Full Name</Text>
+              {/* Email */}
+              <Text style={styles.label}>Email Address</Text>
               <View
                 style={[
                   styles.inputContainer,
-                  (focusedField === 'name' || !!fullName) && styles.inputActive,
+                  (focusedField === 'email' || !!email) && styles.inputActive,
                 ]}
               >
                 <View style={styles.inputIcon}>
-                  <Icon name="account-outline" size={20} color="#007A43" />
+                  <Icon name="email-outline" size={20} color="#007A43" />
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter your full name"
+                  placeholder="Enter your email address"
                   placeholderTextColor="#A0AAB0"
-                  value={fullName}
-                  onChangeText={setFullName}
-                  onFocus={() => setFocusedField('name')}
-                  onBlur={() => setFocusedField(null)}
-                  autoCapitalize="words"
-                  editable={!loading}
-                />
-              </View>
-
-              {/* Email or Mobile */}
-              <Text style={styles.label}>Email or Mobile Number</Text>
-              <View
-                style={[
-                  styles.inputContainer,
-                  (focusedField === 'contact' || !!contact) &&
-                    styles.inputActive,
-                ]}
-              >
-                <View style={styles.inputIcon}>
-                  <Icon
-                    name={
-                      contact.includes('@')
-                        ? 'email-outline'
-                        : 'cellphone-key'
-                    }
-                    size={20}
-                    color="#007A43"
-                  />
-                </View>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter email or mobile number"
-                  placeholderTextColor="#A0AAB0"
-                  value={contact}
-                  onChangeText={setContact}
-                  onFocus={() => setFocusedField('contact')}
+                  value={email}
+                  onChangeText={setEmail}
+                  onFocus={() => setFocusedField('email')}
                   onBlur={() => setFocusedField(null)}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
-                  editable={!loading}
-                />
-              </View>
-
-              {/* Password */}
-              <Text style={styles.label}>Password</Text>
-              <View
-                style={[
-                  styles.inputContainer,
-                  (focusedField === 'password' || !!password) &&
-                    styles.inputActive,
-                ]}
-              >
-                <View style={styles.inputIcon}>
-                  <Icon name="lock-outline" size={20} color="#007A43" />
-                </View>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Create a password (min 6 chars)"
-                  placeholderTextColor="#A0AAB0"
-                  value={password}
-                  onChangeText={setPassword}
-                  onFocus={() => setFocusedField('password')}
-                  onBlur={() => setFocusedField(null)}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                  editable={!loading}
-                />
-                <TouchableOpacity
-                  style={styles.eyeButton}
-                  onPress={() => setShowPassword(!showPassword)}
-                  disabled={loading}
-                >
-                  <Icon
-                    name={showPassword ? 'eye-outline' : 'eye-off-outline'}
-                    size={20}
-                    color="#7B8794"
-                  />
-                </TouchableOpacity>
-              </View>
-
-              {/* Confirm Password */}
-              <Text style={styles.label}>Confirm Password</Text>
-              <View
-                style={[
-                  styles.inputContainer,
-                  (focusedField === 'confirm' || !!confirmPassword) &&
-                    styles.inputActive,
-                ]}
-              >
-                <View style={styles.inputIcon}>
-                  <Icon name="lock-check-outline" size={20} color="#007A43" />
-                </View>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Re-enter your password"
-                  placeholderTextColor="#A0AAB0"
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  onFocus={() => setFocusedField('confirm')}
-                  onBlur={() => setFocusedField(null)}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
                   editable={!loading}
                 />
               </View>
@@ -312,7 +187,9 @@ const SignupScreen = ({ navigation }) => {
 
               {/* Login Link */}
               <View style={styles.loginRow}>
-                <Text style={styles.loginPrompt}>Already have an account? </Text>
+                <Text style={styles.loginPrompt}>
+                  Already have an account?{' '}
+                </Text>
                 <TouchableOpacity
                   onPress={() => navigation?.navigate?.('Login')}
                   disabled={loading}
@@ -374,7 +251,11 @@ const styles = StyleSheet.create({
     bottom: -wp('25%'),
     left: -wp('20%'),
   },
-  headerContent: { alignItems: 'center', zIndex: 2, paddingHorizontal: wp('5%') },
+  headerContent: {
+    alignItems: 'center',
+    zIndex: 2,
+    paddingHorizontal: wp('5%'),
+  },
   logoCard: {
     width: wp('80%'),
     height: hp('9%'),
@@ -422,7 +303,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: hp('2%'),
   },
-  formTitle: { fontSize: wp('4.8%'), fontFamily: FontFamily.bold, color: '#123F2A' },
+  formTitle: {
+    fontSize: wp('4.8%'),
+    fontFamily: FontFamily.bold,
+    color: '#123F2A',
+  },
   formSubtitle: {
     fontSize: FontSize.sm,
     fontFamily: FontFamily.regular,
@@ -491,7 +376,6 @@ const styles = StyleSheet.create({
     color: '#1F3329',
     paddingVertical: 0,
   },
-  eyeButton: { padding: 6 },
   buttonWrapper: {
     borderRadius: 12,
     overflow: 'hidden',

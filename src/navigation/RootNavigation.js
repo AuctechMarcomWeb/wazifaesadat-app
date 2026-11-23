@@ -10,9 +10,15 @@ import { getProfile } from '../api/auth';
 import AuthNavigation from './AuthNavigation';
 import UnauthNavigation from './UnauthNavigation';
 
+const loadingContainerStyle = {
+  flex: 1,
+  justifyContent: 'center',
+  alignItems: 'center',
+};
+
 const RootNavigation = () => {
   const dispatch = useDispatch();
-  const { token, isAuthenticated } = useSelector((state) => state.user);
+  const { token, isAuthenticated, user } = useSelector((state) => state.user);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -41,6 +47,8 @@ const RootNavigation = () => {
 
             if (profileResult.success && profileResult.user) {
               console.log('✅ Profile fetched successfully');
+              console.log('📋 isNew:', profileResult.user?.isNew);
+              
               // Update user with fresh permissions
               dispatch(
                 setUser({
@@ -75,7 +83,7 @@ const RootNavigation = () => {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={loadingContainerStyle}>
         <ActivityIndicator size="large" />
       </View>
     );
@@ -84,9 +92,21 @@ const RootNavigation = () => {
   // Check both token and isAuthenticated flag
   const isUserAuthenticated = token && isAuthenticated;
 
+  // If user is authenticated but isNew is true, we'll handle it in AuthNavigation
+  // by showing CreateProfile first. For now, let's check if we should show Unauth screens
+  
   return (
     <NavigationContainer>
-      {isUserAuthenticated ? <AuthNavigation /> : <UnauthNavigation />}
+      {isUserAuthenticated ? (
+        user?.isNew ? (
+          // For now, treat new user as unauthenticated to show CreateProfile flow
+          <UnauthNavigation initialRouteName="CreateProfile" />
+        ) : (
+          <AuthNavigation />
+        )
+      ) : (
+        <UnauthNavigation />
+      )}
     </NavigationContainer>
   );
 };
