@@ -18,26 +18,26 @@ const TABS = [
   {
     key: 'CommunityPost',
     label: 'Home',
-    icon: 'view-dashboard-outline',
-    activeIcon: 'view-dashboard',
+    icon: 'home-outline',
+    activeIcon: 'home',
   },
   {
-    key: 'ProfileScreen',
-    label: 'Profile',
-    icon: 'account-circle-outline',
-    activeIcon: 'account-circle',
+    key: 'ScholarshipScreen',
+    label: 'Scholarship',
+    icon: 'school-outline',
+    activeIcon: 'school',
+  },
+  {
+    key: 'NotificationScreen',
+    label: 'Notification',
+    icon: 'bell-outline',
+    activeIcon: 'bell',
   },
   {
     key: 'SettingScreen',
-    label: 'Settings',
+    label: 'Setting',
     icon: 'cog-outline',
     activeIcon: 'cog',
-  },
-  {
-    key: 'Posts',
-    label: 'Posts',
-    icon: 'apps',
-    activeIcon: 'apps',
   },
 ];
 
@@ -45,24 +45,11 @@ const BottomNav = ({ active = 'CommunityPost', onPress }) => {
   const navigation = useNavigation();
 
   const handleTabPress = tabKey => {
-    // Call parent onPress if provided
     if (onPress) {
       onPress(tabKey);
     }
 
-    // Navigate to drawer screen
-    if (tabKey === 'CommunityPost') {
-      navigation.navigate('CommunityPost');
-    } else if (tabKey === 'ProfileScreen') {
-      navigation.navigate('ProfileScreen');
-    } else if (tabKey === 'SettingScreen') {
-      navigation.navigate('SettingScreen');
-    } else if (tabKey === 'Posts') {
-      navigation.navigate('Posts');
-    } else if (tabKey === 'More') {
-      // More navigation - open drawer
-      navigation.openDrawer();
-    }
+    navigation.navigate(tabKey);
   };
 
   return (
@@ -108,7 +95,6 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? 22 : 9,
     borderTopWidth: 1,
     borderTopColor: '#E8EEE9',
-
     elevation: 12,
     shadowColor: '#000',
     shadowOffset: {
@@ -126,7 +112,7 @@ const styles = StyleSheet.create({
   },
 
   tab: {
-    width: '88%',
+    width: '92%',
     minHeight: 54,
     alignItems: 'center',
     justifyContent: 'center',

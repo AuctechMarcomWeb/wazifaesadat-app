@@ -6,17 +6,17 @@ import {
   StyleSheet,
 } from 'react-native';
 
-import AppLayout from '../../../components/AppLayout/AppLayout';
-import BackHeader from '../../../components/BackHeader/BackHeader';
+import BackHeader from '../../components/BackHeader/BackHeader';
+import AppLayout from '../../components/AppLayout/AppLayout';
 
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
 } from 'react-native-responsive-screen';
 
-import Colors from '../../../themes/colors';
-import { FontFamily, FontSize } from '../../../themes/typography';
-import BottomNav from '../../../components/BottomNav/BottomNav';
+import Colors from '../../themes/colors';
+import { FontFamily, FontSize } from '../../themes/typography';
+import BottomNav from '../../components/BottomNav/BottomNav';
 
 const TermsConditionsScreen = ({ navigation }) => {
   const handleTabPress = key => {

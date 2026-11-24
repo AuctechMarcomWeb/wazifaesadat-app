@@ -8,23 +8,13 @@ import Sidebar from '../components/Sidebar/Sidebar';
 import { MENU_CONFIG } from '../config/menuConfig';
 import CommunityPost from '../Screens/CommunityPost/CommunityPost';
 
-// Dashboard screens
-import SuperAdminDashboard from '../Screens/Dashboard/SuperAdmin/Dashboardscreen/Dashboardscreen';
-import AdminDashboard from '../Screens/Dashboard/Admin/Dashboardscreen/Dashboardscreen';
-import ExecutiveMemberDashboard from '../Screens/Dashboard/ExecutiveMember/Dashboardscreen/Dashboardscreen';
-import OfficeBearerDashboard from '../Screens/Dashboard/OfficeBearer/Dashboardscreen/Dashboardscreen';
-import OfficeBearersPluralDashboard from '../Screens/Dashboard/Office Bearers/Dashboardscreen/Dashboardscreen';
-import OfficeStaffDashboard from '../Screens/Dashboard/OfficeStaff/Dashboardscreen/Dashboardscreen';
-import LocalSecretaryDashboard from '../Screens/Dashboard/LocalSecretary/Dashboardscreen/Dashboardscreen';
-import MembershipDashboard from '../Screens/Dashboard/Membership/Dashboardscreen/Dashboardscreen';
-import WazifaUserDashboard from '../Screens/Dashboard/WazifaUser/Dashboardscreen/Dashboardscreen';
 
 // Common screens
-import ProfileScreen from '../Screens/Common/Profile/Profile';
-import SettingsScreen from '../Screens/Common/SettingScreen/SettingScreen';
-import PrivacyPolicyScreen from '../Screens/Common/SettingScreen/PrivacyPolicyScreen';
-import TermsConditionsScreen from '../Screens/Common/SettingScreen/TermsConditionsScreen';
-import AboutAppScreen from '../Screens/Common/SettingScreen/AboutAppScreen';
+import ProfileScreen from '../Screens/Profile/Profile';
+import SettingsScreen from '../Screens/SettingScreen/SettingScreen';
+import PrivacyPolicyScreen from '../Screens//SettingScreen/PrivacyPolicyScreen';
+import TermsConditionsScreen from '../Screens//SettingScreen/TermsConditionsScreen';
+import AboutAppScreen from '../Screens//SettingScreen/AboutAppScreen';
 import MasterRegisterScreen from '../Screens/Common/MasterRegister/MasterRegister';
 import MemberProfileScreen from '../Screens/Common/MasterRegister/MemberProfile';
 import LetterRecordScreen from '../Screens/Common/Letterrecordscreen/Letterrecordscreen';
@@ -65,9 +55,9 @@ import AddExecutiveMembersScreen from '../Screens/Common/OrganizationStructure/E
 import LocalSecretariesScreen from '../Screens/Common/OrganizationStructure/LocalSecretariesScreen/LocalSecretariesScreen';
 import AddLocalSecretaryScreen from '../Screens/Common/OrganizationStructure/LocalSecretariesScreen/AddLocalSecretaryScreen';
 import UserAccessManagementScreen from '../Screens/Common/UserAccessManagementScreen/UserAccessManagementScreen';
-import ActivityLogsScreen from '../Screens/Common/ActivityLogsScreen/ActivityLogsScreen';
 import UnderDevelopmentScreen from '../Screens/UnderDevelopmentScreen/UnderDevelopmentScreen';
 import SelectMemberScreen from '../Screens/Common/Collection/Receivepaymentscreen/Selectmemberscreen';
+import NotificationScreen from '../Screens/NotificationScreen/NotificationScreen';
 
 // Master screens
 import DesignationScreen from '../Screens/Master/Designation/Designation';
@@ -87,28 +77,17 @@ import ScholarshipDateScreen from '../Screens/Master/ScholarshipDate/Scholarship
 import AddScholarshipDateScreen from '../Screens/Master/ScholarshipDate/AddScholarshipDateScreen';
 import ExpenseScreen from '../Screens/Master/Expense/ExpenseMasterScreen';
 import AddExpenseScreen from '../Screens/Master/Expense/AddExpenseScreen';
-
+import ScholarshipScreen from '../Screens/ScholarshipScreen/ScholarshipScreen';
 // Message details screen
 import MessageDetailsScreen from '../Screens/Common/Messagingscreen/MessageDetailsScreen';
 
 const Drawer = createDrawerNavigator();
 const Stack = createNativeStackNavigator();
 
-const dashboardScreens = {
-  SuperAdmin: SuperAdminDashboard,
-  Admin: AdminDashboard,
-  ExecutiveMember: ExecutiveMemberDashboard,
-  OfficeBearer: OfficeBearerDashboard,
-  'Office Bearers': OfficeBearersPluralDashboard,
-  OfficeStaff: OfficeStaffDashboard,
-  LocalSecretary: LocalSecretaryDashboard,
-  Membership: MembershipDashboard,
-  WazifaUser: WazifaUserDashboard,
-};
+
 
 const MainDrawer = () => {
   const { role } = useSelector(state => state.user);
-  const DashboardComponent = dashboardScreens[role] || SuperAdminDashboard;
 
   return (
     <Drawer.Navigator
@@ -127,20 +106,6 @@ const MainDrawer = () => {
         }}
       />
 
-      <Drawer.Screen
-        name="Dashboard"
-        component={DashboardComponent}
-        options={{
-          title: 'Dashboard',
-          drawerIcon: ({ color }) => (
-            <Icon
-              name={MENU_CONFIG.Dashboard?.icon || 'home'}
-              size={20}
-              color={color}
-            />
-          ),
-        }}
-      />
 
       <Drawer.Screen
         name="ProfileScreen"
@@ -306,6 +271,16 @@ const MainDrawer = () => {
           ),
         }}
       />
+      <Drawer.Screen
+        name="ScholarshipScreen"
+        component={ScholarshipScreen}
+        options={{
+          title: 'Scholarship Screen',
+          drawerIcon: ({ color }) => (
+            <Icon name="link" size={20} color={color} />
+          ),
+        }}
+      />
 
       <Drawer.Screen
         name="PaymentList"
@@ -345,6 +320,15 @@ const MainDrawer = () => {
         component={Addfardehisaabscreen}
         options={{
           title: 'Add Farde Hisaab',
+          drawerItemStyle: { display: 'none' },
+        }}
+      />
+
+      <Drawer.Screen
+        name="NotificationScreen"
+        component={NotificationScreen}
+        options={{
+          title: 'NotificationScreen ',
           drawerItemStyle: { display: 'none' },
         }}
       />
@@ -527,15 +511,6 @@ const MainDrawer = () => {
         component={UserAccessManagementScreen}
         options={{
           title: 'UserAccessManagement Screen',
-          drawerItemStyle: { display: 'none' },
-        }}
-      />
-
-      <Drawer.Screen
-        name="ActivityLogsScreen"
-        component={ActivityLogsScreen}
-        options={{
-          title: 'ActivityLogs Screen',
           drawerItemStyle: { display: 'none' },
         }}
       />
@@ -816,7 +791,6 @@ const AuthNavigation = () => {
       {/* Common Screens */}
       <Stack.Screen name="CommunityPost" component={CommunityPost} />
 
-      <Stack.Screen name="Dashboard" component={SuperAdminDashboard} />
 
       <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
 
@@ -838,6 +812,8 @@ const AuthNavigation = () => {
       <Stack.Screen name="MemberProfile" component={MemberProfileScreen} />
 
       <Stack.Screen name="LetterRecord" component={LetterRecordScreen} />
+
+      <Stack.Screen name="ScholarshipScreen" component={ScholarshipScreen} />
 
       {/* Collection Screens */}
       <Stack.Screen name="Payment" component={ReceivePaymentScreen} />
@@ -877,6 +853,8 @@ const AuthNavigation = () => {
         name="AddWazifaApplicationScreen"
         component={AddWazifaApplicationScreen}
       />
+      <Stack.Screen name="NotificationScreen" component={NotificationScreen} />
+
       <Stack.Screen
         name="VerifyWazifaListScreen"
         component={VerifyWazifaListScreen}
@@ -942,7 +920,6 @@ const AuthNavigation = () => {
         name="UserAccessManagementScreen"
         component={UserAccessManagementScreen}
       />
-      <Stack.Screen name="ActivityLogsScreen" component={ActivityLogsScreen} />
 
       {/* Master Screens */}
       <Stack.Screen name="DesignationScreen" component={DesignationScreen} />

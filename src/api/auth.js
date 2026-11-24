@@ -365,7 +365,7 @@ export const uploadImage = async file => {
 
     // Create a special instance for upload
     const uploadInstance = axios.create({
-      baseURL: 'http://192.168.1.12:9004/api',
+      baseURL: 'http://192.168.1.9:9004/api',
       timeout: 30000,
     });
 
@@ -732,8 +732,7 @@ export const resendWhatsAppOtp = async (userId, whatsappNumber) => {
     if (response.data.success) {
       return {
         success: true,
-        message:
-          response.data.message || 'WhatsApp OTP resent successfully',
+        message: response.data.message || 'WhatsApp OTP resent successfully',
       };
     }
     return { success: false, message: response.data.message };

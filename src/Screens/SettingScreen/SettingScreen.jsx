@@ -14,18 +14,18 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { useSelector, useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import BackHeader from '../../../components/BackHeader/BackHeader';
-import AppLayout from '../../../components/AppLayout/AppLayout';
+import BackHeader from '../../components/BackHeader/BackHeader';
+import AppLayout from '../../components/AppLayout/AppLayout';
 
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
 } from 'react-native-responsive-screen';
 
-import Colors from '../../../themes/colors';
-import { FontFamily, FontSize } from '../../../themes/typography';
-import BottomNav from '../../../components/BottomNav/BottomNav';
-import { logout } from '../../../redux/slice/userSlice';
+import Colors from '../../themes/colors';
+import { FontFamily, FontSize } from '../../themes/typography';
+import BottomNav from '../../components/BottomNav/BottomNav';
+import { logout } from '../../redux/slice/userSlice';
 
 const SettingsScreen = ({ navigation, onLogout }) => {
   const dispatch = useDispatch();
@@ -230,8 +230,8 @@ const SettingsScreen = ({ navigation, onLogout }) => {
 
             <SettingRow
               icon="information-outline"
-              title="About App"
-              subtitle="Application information"
+              title="About Us"
+              subtitle="wazifaesadat"
               onPress={() => navigation.navigate('AboutApp')}
             />
           </View>
@@ -260,13 +260,6 @@ const SettingsScreen = ({ navigation, onLogout }) => {
           </TouchableOpacity>
 
           {/* App Version */}
-          <View style={styles.footer}>
-            <Text style={styles.footerTitle}>AWSM Member App</Text>
-
-            <Text style={styles.version}>Version 1.0.0</Text>
-
-            <Text style={styles.copyright}>Made with care for our members</Text>
-          </View>
         </ScrollView>
       </View>
 

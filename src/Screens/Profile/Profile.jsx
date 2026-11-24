@@ -7,32 +7,36 @@ import {
   Image,
   ActivityIndicator,
   TouchableOpacity,
+  Modal,
+  Alert,
+  TextInput,
 } from 'react-native';
 
 import { useSelector, useDispatch } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { getProfile } from '../../../api/auth';
-import { setUser } from '../../../redux/slice/userSlice';
+import { getProfile } from '../../api/auth';
+import { setUser } from '../../redux/slice/userSlice';
 
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
-import Colors from '../../../themes/colors';
-import { FontFamily, FontSize } from '../../../themes/typography';
+import Colors from '../../themes/colors';
+import { FontFamily, FontSize } from '../../themes/typography';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
 } from 'react-native-responsive-screen';
 
-import AppLayout from '../../../components/AppLayout/AppLayout';
-import BackHeader from '../../../components/BackHeader/BackHeader';
-import BottomNav from '../../../components/BottomNav/BottomNav';
+import AppLayout from '../../components/AppLayout/AppLayout';
+import BackHeader from '../../components/BackHeader/BackHeader';
+import BottomNav from '../../components/BottomNav/BottomNav';
 
 // ─────────────────────────────────────────
 // Info Row Component
 // ─────────────────────────────────────────
 
-const InfoRow = ({ icon, label, value }) => (
+const InfoRow = ({ icon, label, value, isVerified, onVerifyPress }) => (
   <View style={styles.infoRow}>
     <View style={styles.infoIcon}>
       <MaterialCommunityIcons name={icon} size={20} color={Colors.primary} />
@@ -44,6 +48,22 @@ const InfoRow = ({ icon, label, value }) => (
         {value || 'Not Available'}
       </Text>
     </View>
+
+    {isVerified === false && (
+      <TouchableOpacity
+        style={styles.unverifiedBadge}
+        onPress={onVerifyPress}
+        accessibilityRole="button"
+        accessibilityLabel="Verify WhatsApp number"
+      >
+        <MaterialCommunityIcons
+          name="alert-circle-outline"
+          size={14}
+          color="#DC2626"
+        />
+        <Text style={styles.unverifiedBadgeText}>Unverified</Text>
+      </TouchableOpacity>
+    )}
   </View>
 );
 
@@ -57,6 +77,11 @@ const ProfileScreen = ({ navigation }) => {
 
   const [refreshing, setRefreshing] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpDigits, setOtpDigits] = useState(Array(6).fill(''));
+  const [otpError, setOtpError] = useState('');
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -106,11 +131,100 @@ const ProfileScreen = ({ navigation }) => {
   const userId = profile?.userId || '';
   const profilePic = profile?.profilePic || loginData?.profilePic || '';
   const isSuspended = Boolean(profile?.isSuspended);
+  const isWhatsAppVerified = profile?.isWatsappVerify === true;
 
   const currentUserData = profile || loginData || {};
 
   const handleCardPress = () => {
     navigation?.navigate('EditProfileScreen', { user: currentUserData });
+  };
+
+  const handleVerifyWhatsApp = () => {
+    setShowVerifyModal(true);
+  };
+
+  const handleVerifyPress = () => {
+    setShowVerifyModal(false);
+    setShowOtpModal(true);
+    setOtpDigits(Array(6).fill(''));
+    setOtpError('');
+  };
+
+  const handleOtpChange = (value, index) => {
+    setOtpError('');
+    const clean = value.replace(/\D/g, '');
+
+    if (!clean) {
+      const next = [...otpDigits];
+      next[index] = '';
+      setOtpDigits(next);
+      return;
+    }
+
+    if (clean.length > 1) {
+      const next = Array(6).fill('');
+      clean
+        .slice(0, 6)
+        .split('')
+        .forEach((digit, idx) => {
+          next[idx] = digit;
+        });
+      setOtpDigits(next);
+      return;
+    }
+
+    const next = [...otpDigits];
+    next[index] = clean;
+    setOtpDigits(next);
+  };
+
+  const handleOtpVerify = async () => {
+    setOtpError('');
+    const otp = otpDigits.join('');
+
+    if (otp.length !== 6) {
+      setOtpError('Please enter all 6 digits');
+      return;
+    }
+
+    setVerifyingOtp(true);
+
+    try {
+      // Call backend to verify WhatsApp OTP
+      const userId = profile?._id || loginData?._id;
+      if (!userId) {
+        setOtpError('User ID not found');
+        return;
+      }
+
+      const result = await fetch(
+        `http://192.168.1.9:9004/api/auth/verify-whatsapp/${userId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${await AsyncStorage.getItem('authToken')}`,
+          },
+          body: JSON.stringify({ otp }),
+        },
+      ).then(r => r.json());
+
+      if (result.success) {
+        setShowOtpModal(false);
+        const updatedUser = result.data?.user || result.user;
+        if (updatedUser) {
+          dispatch(setUser(updatedUser));
+          await AsyncStorage.setItem('userData', JSON.stringify(updatedUser));
+        }
+        Alert.alert('Success', 'WhatsApp number verified successfully!');
+      } else {
+        setOtpError(result.message || 'OTP verification failed');
+      }
+    } catch (error) {
+      setOtpError(error.message || 'Verification failed');
+    } finally {
+      setVerifyingOtp(false);
+    }
   };
 
   const formattedLastLogin = profile?.lastLogin
@@ -265,14 +379,152 @@ const ProfileScreen = ({ navigation }) => {
 
             <View style={styles.rowDivider} />
 
-            <InfoRow icon="phone-outline" label="Mobile Number" value={phone} />
+            <InfoRow
+              icon="phone-outline"
+              label="Mobile Number"
+              value={phone}
+              isVerified={isWhatsAppVerified}
+              onVerifyPress={handleVerifyWhatsApp}
+            />
 
             <View style={styles.rowDivider} />
 
             <InfoRow icon="gender-male-female" label="Gender" value={gender} />
           </View>
 
-     
+          {/* Verify WhatsApp Modal */}
+          <Modal
+            visible={showVerifyModal}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowVerifyModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.verifyModalContent}>
+                <TouchableOpacity
+                  style={styles.verifyModalCloseButton}
+                  onPress={() => setShowVerifyModal(false)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                >
+                  <MaterialCommunityIcons
+                    name="close"
+                    size={20}
+                    color={Colors.textSecondary}
+                  />
+                </TouchableOpacity>
+
+                <View style={styles.verifyIconCircle}>
+                  <MaterialCommunityIcons
+                    name="alert-circle-outline"
+                    size={40}
+                    color="#DC2626"
+                  />
+                </View>
+
+                <Text style={styles.verifyModalTitle}>
+                  WhatsApp Verification Required
+                </Text>
+
+                <Text style={styles.verifyModalSubtitle}>
+                  Your WhatsApp number hasn't been verified yet. Please verify
+                  it to complete your registration.
+                </Text>
+
+                <View style={styles.verifyModalActions}>
+                  <TouchableOpacity
+                    style={styles.verifyModalButton}
+                    onPress={handleVerifyPress}
+                  >
+                    <Text style={styles.verifyModalButtonText}>Verify Now</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.verifyModalCancelButton}
+                    onPress={() => setShowVerifyModal(false)}
+                  >
+                    <Text style={styles.verifyModalCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
+
+          {/* OTP Verification Modal */}
+          <Modal
+            visible={showOtpModal}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setShowOtpModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.otpModalContent}>
+                <View style={styles.otpModalHeader}>
+                  <Text style={styles.otpModalTitle}>Verify WhatsApp OTP</Text>
+                  <TouchableOpacity onPress={() => setShowOtpModal(false)}>
+                    <MaterialCommunityIcons
+                      name="close"
+                      size={24}
+                      color={Colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.otpModalSubtitle}>
+                  Enter the 6-digit OTP sent to your WhatsApp number
+                </Text>
+
+                {otpError ? (
+                  <View style={styles.otpErrorContainer}>
+                    <MaterialCommunityIcons
+                      name="alert-circle-outline"
+                      size={16}
+                      color="#DC2626"
+                    />
+                    <Text style={styles.otpErrorText}>{otpError}</Text>
+                  </View>
+                ) : null}
+
+                <View style={styles.otpInputRow}>
+                  {otpDigits.map((digit, index) => (
+                    <TextInput
+                      key={index}
+                      style={styles.otpInputBox}
+                      value={digit}
+                      onChangeText={value => handleOtpChange(value, index)}
+                      keyboardType="number-pad"
+                      maxLength={1}
+                      editable={!verifyingOtp}
+                      textAlign="center"
+                    />
+                  ))}
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.otpSubmitButton,
+                    verifyingOtp && styles.otpSubmitButtonDisabled,
+                  ]}
+                  onPress={handleOtpVerify}
+                  disabled={verifyingOtp}
+                >
+                  {verifyingOtp ? (
+                    <ActivityIndicator size="small" color={Colors.white} />
+                  ) : (
+                    <Text style={styles.otpSubmitButtonText}>Verify OTP</Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.otpCancelButton}
+                  onPress={() => setShowOtpModal(false)}
+                  disabled={verifyingOtp}
+                >
+                  <Text style={styles.otpCancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
         </ScrollView>
 
         <BottomNav active="Profile" onPress={handleTabPress} />
@@ -488,7 +740,9 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: hp('1.25%'),
+    gap: wp('2%'),
   },
 
   infoIcon: {
@@ -498,11 +752,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryLight || Colors.primaryBg,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: wp('3%'),
+    marginRight: wp('1%'),
+    flexShrink: 0,
   },
 
   infoContent: {
     flex: 1,
+    minWidth: 0,
   },
 
   infoLabel: {
@@ -522,5 +778,226 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.neutral.border,
     marginLeft: 38 + wp('3%'),
+  },
+
+  infoValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: wp('2%'),
+    flexWrap: 'wrap',
+  },
+
+  unverifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    flexShrink: 0,
+  },
+
+  unverifiedBadgeText: {
+    fontSize: 10,
+    fontFamily: FontFamily.semiBold,
+    color: '#DC2626',
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: wp('4%'),
+  },
+
+  verifyModalContent: {
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: wp('5%'),
+    paddingTop: wp('6%'),
+    alignItems: 'center',
+    maxWidth: '85%',
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+
+  verifyIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+
+  verifyModalCloseButton: {
+    position: 'absolute',
+    top: wp('3%'),
+    right: wp('3%'),
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.neutral.border || '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+
+  verifyModalTitle: {
+    fontSize: FontSize.lg || FontSize.md,
+    fontFamily: FontFamily.bold,
+    color: Colors.TitleColor,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+
+  verifyModalSubtitle: {
+    fontSize: FontSize.sm,
+    fontFamily: FontFamily.regular,
+    color: Colors.textSecondary || Colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+
+  verifyModalActions: {
+    width: '100%',
+    gap: wp('2%'),
+  },
+
+  verifyModalButton: {
+    backgroundColor: Colors.primary,
+    paddingVertical: hp('1.4%'),
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+
+  verifyModalButtonText: {
+    fontSize: FontSize.md,
+    fontFamily: FontFamily.semiBold,
+    color: Colors.white,
+    paddingHorizontal: wp('3%'),
+  },
+
+  verifyModalCancelButton: {
+    backgroundColor: 'transparent',
+    paddingVertical: hp('0.8%'),
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+
+  verifyModalCancelText: {
+    fontSize: FontSize.sm,
+    fontFamily: FontFamily.semiBold,
+    color: Colors.textSecondary || Colors.textMuted,
+  },
+
+  otpModalContent: {
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: wp('5%'),
+    minHeight: '15%',
+    maxWidth: '100%',
+  },
+
+  otpModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: hp('1.5%'),
+    paddingBottom: hp('1%'),
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.border,
+  },
+
+  otpModalTitle: {
+    fontSize: FontSize.lg || FontSize.md,
+    fontFamily: FontFamily.bold,
+    color: Colors.TitleColor,
+  },
+
+  otpModalSubtitle: {
+    fontSize: FontSize.sm,
+    fontFamily: FontFamily.regular,
+    color: Colors.textSecondary,
+    marginBottom: hp('1.5%'),
+    lineHeight: 20,
+  },
+
+  otpErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    padding: wp('3%'),
+    borderRadius: 10,
+    marginBottom: hp('1.5%'),
+    gap: wp('2%'),
+  },
+
+  otpErrorText: {
+    fontSize: FontSize.sm,
+    fontFamily: FontFamily.medium,
+    color: '#DC2626',
+    flex: 1,
+  },
+
+  otpInputRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: wp('2%'),
+    marginBottom: hp('2%'),
+  },
+
+  otpInputBox: {
+    flex: 1,
+    height: wp('12%'),
+    borderWidth: 1.5,
+    borderColor: Colors.neutral.border,
+    borderRadius: 12,
+    backgroundColor: Colors.primaryBg || '#F8FAF9',
+    fontSize: FontSize.lg,
+    fontFamily: FontFamily.bold,
+    color: Colors.TitleColor,
+    textAlign: 'center',
+  },
+
+  otpSubmitButton: {
+    backgroundColor: Colors.primary,
+    paddingVertical: hp('1.6%'),
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: hp('1%'),
+  },
+
+  otpSubmitButtonDisabled: {
+    opacity: 0.6,
+  },
+
+  otpSubmitButtonText: {
+    fontSize: FontSize.md,
+    fontFamily: FontFamily.semiBold,
+    color: Colors.white,
+  },
+
+  otpCancelButton: {
+    paddingVertical: hp('1.4%'),
+    alignItems: 'center',
+  },
+
+  otpCancelButtonText: {
+    fontSize: FontSize.sm,
+    fontFamily: FontFamily.semiBold,
+    color: Colors.textSecondary || Colors.textMuted,
   },
 });

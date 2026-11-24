@@ -1,8 +1,12 @@
+
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// const BASE_URL = 'https://api.wazifaesadat.org/api';
-const BASE_URL = 'http://192.168.1.9:9004/api';
+// Main API URL
+export const BASE_URL = 'http://192.168.1.9:9004/api';
+
+// Jobs API URL
+export const JOBS_BASE_URL = 'https://jobsapi.wazifaesadat.org/api';
 
 let _cachedToken = null;
 
@@ -14,14 +18,16 @@ export const clearCachedToken = () => {
   _cachedToken = null;
 };
 
-// Pre-warm token on app start (call this in App.js)
+// Preload token on app start
 export const preloadToken = async () => {
   try {
-    const token = await AsyncStorage.getItem('authToken');
-    _cachedToken = token;
-  } catch (_) {}
+    _cachedToken = await AsyncStorage.getItem('authToken');
+  } catch (error) {
+    console.log('Preload Token Error:', error);
+  }
 };
 
+// Create Axios Instance
 export const createAxiosInstance = (endpoint = '') => {
   const instance = axios.create({
     baseURL: `${BASE_URL}/${endpoint}`,
@@ -31,33 +37,37 @@ export const createAxiosInstance = (endpoint = '') => {
     },
   });
 
-  // Attach token
+  // Attach JWT Token
   instance.interceptors.request.use(
     async config => {
       try {
         if (!_cachedToken) {
           _cachedToken = await AsyncStorage.getItem('authToken');
         }
+
         if (_cachedToken) {
           config.headers.Authorization = `Bearer ${_cachedToken}`;
         }
-      } catch (err) {
-        console.log('Token fetch error:', err);
+      } catch (error) {
+        console.log('Token Fetch Error:', error);
       }
+
       return config;
     },
     error => Promise.reject(error),
   );
 
-  // Handle 401
+  // Handle Unauthorized Response
   instance.interceptors.response.use(
     response => response,
     async error => {
       if (error.response?.status === 401) {
         clearCachedToken();
+
         await AsyncStorage.removeItem('authToken');
         await AsyncStorage.removeItem('userData');
       }
+
       return Promise.reject(error);
     },
   );
