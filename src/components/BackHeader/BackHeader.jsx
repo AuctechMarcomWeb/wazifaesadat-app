@@ -13,13 +13,22 @@ const BackHeader = ({
   onRightPress,
 }) => {
   const handleBack = () => {
+    console.log('🔙 BackHeader - handleBack called');
+    console.log('🔙 BackHeader - onBack:', !!onBack);
+    console.log('🔙 BackHeader - navigation:', !!navigation);
+    console.log('🔙 BackHeader - canGoBack:', navigation?.canGoBack?.());
+    
     if (onBack) {
+      console.log('🔙 BackHeader - calling onBack callback');
       onBack();
       return;
     }
 
     if (navigation?.canGoBack()) {
+      console.log('🔙 BackHeader - calling navigation.goBack()');
       navigation.goBack();
+    } else {
+      console.log('🔙 BackHeader - canGoBack is false, cannot go back');
     }
   };
 

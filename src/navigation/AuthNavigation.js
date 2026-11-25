@@ -8,7 +8,6 @@ import Sidebar from '../components/Sidebar/Sidebar';
 import { MENU_CONFIG } from '../config/menuConfig';
 import CommunityPost from '../Screens/CommunityPost/CommunityPost';
 
-
 // Common screens
 import ProfileScreen from '../Screens/Profile/Profile';
 import SettingsScreen from '../Screens/SettingScreen/SettingScreen';
@@ -78,13 +77,26 @@ import AddScholarshipDateScreen from '../Screens/Master/ScholarshipDate/AddSchol
 import ExpenseScreen from '../Screens/Master/Expense/ExpenseMasterScreen';
 import AddExpenseScreen from '../Screens/Master/Expense/AddExpenseScreen';
 import ScholarshipScreen from '../Screens/ScholarshipScreen/ScholarshipScreen';
+import PostScreen from '../Screens/Post/PostScreen';
+import PostDetails from '../Screens/Post/PostDetails';
+import BlogsScreen from '../Screens/Blogs/BlogsScreen';
+import BlogsDetails from '../Screens/Blogs/BlogsDetails';
+import NewsScreen from '../Screens/News/NewScreen';
+import NewsDetails from '../Screens/News/Newsdetails';
+import EventScreen from '../Screens/Events/EventScreen';
+import EventDetails from '../Screens/Events/EventDetails';
+import JobsCareerScreen from '../Screens/Jobs-Career/JobsCareerScreen';
+import JobsCareerDetails from '../Screens/Jobs-Career/JobsCareerDetails';
+import AppealDetails from '../Screens/Appeal/AppealDetails';
+import AppealScreen from '../Screens/Appeal/AppealScreen';
+
+import DonationsScreen from '../Screens/Donation/DonationScreen';
+
 // Message details screen
 import MessageDetailsScreen from '../Screens/Common/Messagingscreen/MessageDetailsScreen';
 
 const Drawer = createDrawerNavigator();
 const Stack = createNativeStackNavigator();
-
-
 
 const MainDrawer = () => {
   const { role } = useSelector(state => state.user);
@@ -105,7 +117,6 @@ const MainDrawer = () => {
           ),
         }}
       />
-
 
       <Drawer.Screen
         name="ProfileScreen"
@@ -271,16 +282,6 @@ const MainDrawer = () => {
           ),
         }}
       />
-      <Drawer.Screen
-        name="ScholarshipScreen"
-        component={ScholarshipScreen}
-        options={{
-          title: 'Scholarship Screen',
-          drawerIcon: ({ color }) => (
-            <Icon name="link" size={20} color={color} />
-          ),
-        }}
-      />
 
       <Drawer.Screen
         name="PaymentList"
@@ -415,6 +416,22 @@ const MainDrawer = () => {
           drawerItemStyle: { display: 'none' },
         }}
       />
+      <Drawer.Screen
+        name="BlogsScreen"
+        component={BlogsScreen}
+        options={{
+          title: 'Blogs Screen ',
+          drawerItemStyle: { display: 'none' },
+        }}
+      />
+      <Drawer.Screen
+        name="DonationsScreen"
+        component={DonationsScreen}
+        options={{
+          title: 'DonationsScreen',
+          drawerItemStyle: { display: 'none' },
+        }}
+      />
 
       <Drawer.Screen
         name="MembershipScreen"
@@ -541,6 +558,15 @@ const MainDrawer = () => {
               'MenuAccessControl',
               'ActivityLogs',
               'Masters',
+              // Exclude community feed items - they're handled separately
+              'Post',
+              'Blogs',
+              'News',
+              'Events',
+              'JobsCareer',
+              'Donation',
+              'Appeal',
+              'Scholarship',
             ].includes(menuKey),
         )
         .map(([menuKey, menuConfig]) => {
@@ -581,6 +607,99 @@ const MainDrawer = () => {
             />
           );
         })}
+
+      {/* Community Feed - 7 Separate Menu Items */}
+      <Drawer.Screen
+        name="Post"
+        component={PostScreen}
+        options={{
+          title: 'Post',
+          drawerIcon: ({ color }) => (
+            <Icon name="file-document" size={20} color={color} />
+          ),
+        }}
+      />
+
+      <Drawer.Screen
+        name="Blogs"
+        component={CommunityPost}
+        options={{
+          title: 'Blogs',
+          drawerIcon: ({ color }) => (
+            <Icon name="book-open-variant" size={20} color={color} />
+          ),
+        }}
+        initialParams={{ contentType: 'Blogs' }}
+      />
+
+      <Drawer.Screen
+        name="News"
+        component={NewsScreen}
+        options={{
+          title: 'News',
+          drawerIcon: ({ color }) => (
+            <Icon name="newspaper" size={20} color={color} />
+          ),
+        }}
+      />
+
+      <Drawer.Screen
+        name="Events"
+        component={EventScreen}
+        options={{
+          title: 'Events',
+          drawerIcon: ({ color }) => (
+            <Icon name="calendar-event" size={20} color={color} />
+          ),
+        }}
+      />
+
+      <Drawer.Screen
+        name="JobsCareer"
+        component={CommunityPost}
+        options={{
+          title: 'Jobs & Career',
+          drawerIcon: ({ color }) => (
+            <Icon name="briefcase-search" size={20} color={color} />
+          ),
+        }}
+        initialParams={{ contentType: 'JobsCareer' }}
+      />
+
+      <Drawer.Screen
+        name="Donation"
+        component={CommunityPost}
+        options={{
+          title: 'Donation',
+          drawerIcon: ({ color }) => (
+            <Icon name="hand-heart" size={20} color={color} />
+          ),
+        }}
+        initialParams={{ contentType: 'Donation' }}
+      />
+
+      <Drawer.Screen
+        name="Appeal"
+        component={CommunityPost}
+        options={{
+          title: 'Appeal',
+          drawerIcon: ({ color }) => (
+            <Icon name="megaphone" size={20} color={color} />
+          ),
+        }}
+        initialParams={{ contentType: 'Appeal' }}
+      />
+
+      <Drawer.Screen
+        name="ScholarshipScreen"
+        component={ScholarshipScreen}
+        options={{
+          title: 'Scholarship',
+          drawerIcon: ({ color }) => (
+            <Icon name="book-education" size={20} color={color} />
+          ),
+        }}
+      />
 
       {/* Master screens */}
       <Drawer.Screen
@@ -690,6 +809,14 @@ const MainDrawer = () => {
           drawerItemStyle: { display: 'none' },
         }}
       />
+      <Drawer.Screen
+        name="BlogsDetails"
+        component={BlogsDetails}
+        options={{
+          title: 'BlogsDetails',
+          drawerItemStyle: { display: 'none' },
+        }}
+      />
 
       <Drawer.Screen
         name="AddRateOfScholarshipScreen"
@@ -790,7 +917,7 @@ const AuthNavigation = () => {
 
       {/* Common Screens */}
       <Stack.Screen name="CommunityPost" component={CommunityPost} />
-
+      <Stack.Screen name="PostDetails" component={PostDetails} />
 
       <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
 
@@ -839,6 +966,22 @@ const AuthNavigation = () => {
       <Stack.Screen name="Expenditure" component={ExpenditureScreen} />
       <Stack.Screen name="AddExpenditure" component={AddExpenditureScreen} />
       <Stack.Screen name="ExpenditureDetail" component={ExpenditureDetail} />
+      <Stack.Screen name="BlogsScreen" component={BlogsScreen} />
+      <Stack.Screen name="BlogsDetails" component={BlogsDetails} />
+
+      {/* News & Events Details */}
+      <Stack.Screen name="NewsDetails" component={NewsDetails} />
+      <Stack.Screen name="EventDetails" component={EventDetails} />
+
+      <Stack.Screen name="DonationsScreen" component={DonationsScreen} />
+
+      {/* Jobs & Career */}
+      <Stack.Screen name="JobsCareerScreen" component={JobsCareerScreen} />
+      <Stack.Screen name="JobsCareerDetails" component={JobsCareerDetails} />
+
+      {/* Appeals */}
+      <Stack.Screen name="AppealScreen" component={AppealScreen} />
+      <Stack.Screen name="AppealDetails" component={AppealDetails} />
 
       {/* Wazifa Screens */}
       <Stack.Screen

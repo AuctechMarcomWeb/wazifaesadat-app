@@ -26,6 +26,7 @@ const TOP_PADDING =
 
 const CommunityPostHeader = ({
   year = 2026,
+  profilePic,
   onYearChange,
   onMenuPress,
   onBellPress,
@@ -71,13 +72,21 @@ const CommunityPostHeader = ({
         </View>
 
         {/* Profile */}
-        <TouchableOpacity
-          onPress={onProfilePress}
-          style={styles.avatar}
-          activeOpacity={0.8}
-        >
-          <Icon name="account" size={32} color={colors.primary} />
-        </TouchableOpacity>
+<TouchableOpacity
+  onPress={onProfilePress}
+  style={styles.avatar}
+  activeOpacity={0.8}
+>
+  {profilePic ? (
+    <Image
+      source={{ uri: profilePic }}
+      style={styles.profileImage}
+      resizeMode="cover"
+    />
+  ) : (
+    <Icon name="account" size={32} color={colors.primary} />
+  )}
+</TouchableOpacity>
       </View>
     </LinearGradient>
   );
@@ -144,8 +153,8 @@ const styles = StyleSheet.create({
 
   // Profile
   avatar: {
-    width: 56,
-    height: 56,
+    width: 50,
+    height: 50,
     borderRadius: 28,
     backgroundColor: colors.white,
     justifyContent: 'center',
@@ -208,6 +217,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
+
+  profileImage: {
+  width: '100%',
+  height: '100%',
+  borderRadius: 28,
+},
   yearList: {
     width: wp('60%'),
     backgroundColor: colors.white,

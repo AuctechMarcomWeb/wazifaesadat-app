@@ -1,4 +1,13 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+
+import { useRoute } from '@react-navigation/native';
 
 import {
   View,
@@ -39,11 +48,43 @@ import {
 import { getPersonalizedJobs } from '../../api/JobsApi';
 
 const PAGE_LIMIT = 10;
-const CARD_MAX_WIDTH = 450;
-const WRAPPER_PADDING = 16;
-const CARD_PADDING = 16;
-const CARD_BORDER = 1;
-const DESCRIPTION_LINES = 4;
+const DESCRIPTION_LINES = 3;
+const SHARE_BASE_URL = 'https://community.app';
+
+const FEEDS = ['posts', 'blogs', 'jobs', 'appeals', 'newsEvents'];
+
+const DUMMY_DONATIONS = [
+  {
+    _id: 'dummy-donation-1',
+    isDummy: true,
+    type: 'appeal',
+    badgeLabel: 'Donation',
+    category: 'Donation&Appeal',
+    title: 'Winter Blanket & Ration Drive for Families',
+    name: 'Community Relief Desk',
+    text: 'Helping low-income families and elderly citizens with warm blankets, dry ration kits, and winter essentials across local neighborhoods.',
+    images: [
+      'https://images.unsplash.com/photo-1593113598332-cd288d649433?auto=format&fit=crop&w=900&q=80',
+    ],
+    raisedAmount: 85000,
+    targetAmount: 150000,
+    remainingAmount: 65000,
+    donorCount: 64,
+    status: 'active',
+    deadline: '2026-12-20T00:00:00.000Z',
+    createdAt: '2099-12-31T23:59:59.000Z',
+    date: '20 Nov 2026',
+    tags: ['Donation', 'WinterRelief', 'CommunityCare'],
+  },
+];
+
+const createInitialPagination = () => ({
+  posts: { page: 1, hasMore: true, loadingMore: false },
+  blogs: { page: 1, hasMore: true, loadingMore: false },
+  jobs: { page: 1, hasMore: true, loadingMore: false },
+  appeals: { page: 1, hasMore: true, loadingMore: false },
+  newsEvents: { page: 1, hasMore: true, loadingMore: false },
+});
 
 const TABS = [
   { key: 'All', label: 'All' },
@@ -68,7 +109,68 @@ const TYPE_META = {
 
 const getId = item => item?._id || item?.id;
 
-// Works for: data = [] | data = { [key]: [] }
+const sortByFeedPriority = (a, b) => {
+  const aDummy = a?.isDummy ? 1 : 0;
+  const bDummy = b?.isDummy ? 1 : 0;
+  if (aDummy !== bDummy) return bDummy - aDummy;
+
+  return (
+    new Date(b?.createdAt || 0).getTime() -
+    new Date(a?.createdAt || 0).getTime()
+  );
+};
+
+const getSharePathSegment = type => {
+  switch (type) {
+    case 'post':
+      return 'posts';
+    case 'blog':
+      return 'blogs';
+    case 'job':
+      return 'jobs';
+    case 'appeal':
+      return 'appeals';
+    case 'event':
+      return 'events';
+    case 'news':
+      return 'news';
+    default:
+      return 'posts';
+  }
+};
+
+const getShareUrl = item => {
+  if (!item) return '';
+
+  const directUrl =
+    item?.shareUrl ||
+    item?.shareLink ||
+    item?.url ||
+    item?.link ||
+    item?.webUrl;
+
+  if (typeof directUrl === 'string' && /^https?:\/\//i.test(directUrl.trim())) {
+    return directUrl.trim();
+  }
+
+  const id = encodeURIComponent(String(item?.id || getId(item) || ''));
+  if (!id) return SHARE_BASE_URL;
+
+  const base = SHARE_BASE_URL.replace(/\/+$/, '');
+  const segment = getSharePathSegment(item?.type);
+  const slug = item?.slug ? `/${encodeURIComponent(String(item.slug))}` : '';
+
+  return `${base}/${segment}/${id}${slug}`;
+};
+
+const buildSharePayload = (item, itemId, shareUrl) => ({
+  id: itemId,
+  type: item?.type || 'post',
+  shareUrl,
+  title: item?.title || '',
+  platform: 'native_share',
+});
+
 const getArray = (response, key) => {
   if (!response?.success) return [];
 
@@ -78,6 +180,51 @@ const getArray = (response, key) => {
   if (Array.isArray(data?.[key])) return data[key];
 
   return [];
+};
+
+const getHasMore = (response, incomingLength, page, limit = PAGE_LIMIT) => {
+  if (!response?.success || incomingLength === 0) return false;
+
+  const data = response.data;
+  const pagination = data?.pagination || response?.pagination || data;
+
+  if (typeof pagination?.hasMore === 'boolean') return pagination.hasMore;
+  if (typeof pagination?.hasNextPage === 'boolean') {
+    return pagination.hasNextPage;
+  }
+
+  const totalPages =
+    pagination?.totalPages ?? pagination?.pages ?? data?.totalPages;
+  if (typeof totalPages === 'number' && totalPages > 0) {
+    return page < totalPages;
+  }
+
+  const totalItems =
+    pagination?.total ??
+    pagination?.totalCount ??
+    pagination?.totalDocs ??
+    data?.total;
+  if (typeof totalItems === 'number' && totalItems >= 0) {
+    return page * limit < totalItems;
+  }
+
+  return incomingLength >= limit;
+};
+
+const mergeUniqueByKey = (existing = [], incoming = []) => {
+  const map = new Map();
+
+  existing.forEach((item, idx) => {
+    const key = `${item.type}-${item.id || `idx-${idx}`}`;
+    map.set(key, item);
+  });
+
+  incoming.forEach((item, idx) => {
+    const key = `${item.type}-${item.id || `new-${idx}`}`;
+    map.set(key, item);
+  });
+
+  return Array.from(map.values());
 };
 
 const toUri = image => {
@@ -92,8 +239,6 @@ const toList = value => {
   return (Array.isArray(value) ? value : [value]).map(toUri).filter(Boolean);
 };
 
-// NOTE: blogs come with `images: []` (empty) and real pictures in `imgs`,
-// so every image field is merged instead of using the first truthy one.
 const getImages = (item, type) => {
   const gallery = [
     ...toList(item?.images),
@@ -106,10 +251,8 @@ const getImages = (item, type) => {
   let list;
 
   if (type === 'news' || type === 'event') {
-    // thumbnail is a separate cover picture for news/events
     list = [...cover.slice(0, 1), ...gallery];
   } else {
-    // for blogs thumbnail == first image, so only use it as a fallback
     list = gallery.length ? gallery : cover;
   }
 
@@ -167,8 +310,6 @@ const openLink = url => {
 };
 
 /* ---------------------------- HTML (editor) text --------------------------- */
-// Blogs / Jobs descriptions come from a rich-text editor (<p>, <strong>, <ul>…)
-// This lightweight parser renders them with the same formatting, no extra package.
 
 const HTML_REGEX = /<\/?[a-z][^>]*>/i;
 
@@ -206,7 +347,6 @@ const decodeEntities = str =>
     return value === undefined ? match : value;
   });
 
-// Plain text version (used for sharing)
 const stripHtml = html =>
   decodeEntities(
     String(html || '')
@@ -229,7 +369,7 @@ const parseHtml = html => {
   const lists = [];
   const st = { bold: 0, italic: 0, underline: 0, strike: 0, size: 0 };
 
-  let nl = 99; // trailing newlines (99 = start of content)
+  let nl = 99;
   let skip = 0;
 
   const ensure = n => {
@@ -378,7 +518,6 @@ const parseHtml = html => {
     }
   });
 
-  // trim trailing line breaks / spaces
   while (out.length && out[out.length - 1].text === '\n') out.pop();
 
   if (out.length) {
@@ -422,7 +561,6 @@ const RichText = ({ html, style, ...rest }) => {
   );
 };
 
-// Plain text or editor HTML — picks automatically
 const Body = ({ text, isHtml, style, ...rest }) =>
   isHtml ? (
     <RichText html={text} style={style} {...rest} />
@@ -431,6 +569,14 @@ const Body = ({ text, isHtml, style, ...rest }) =>
       {text}
     </Text>
   );
+
+const isItemLiked = (item, userId) => {
+  if (typeof item?.isLiked === 'boolean') return item.isLiked;
+  if (typeof item?.liked === 'boolean') return item.liked;
+  return (
+    !!userId && Array.isArray(item?.likedBy) && item.likedBy.includes(userId)
+  );
+};
 
 const normalizeItem = (item, type) => {
   const category =
@@ -442,6 +588,15 @@ const normalizeItem = (item, type) => {
       ? 'Donation&Appeal'
       : 'News&Events';
 
+  const normalizedLikes = item?.likes ?? item?.likeCount ?? 0;
+  const normalizedLikedBy = Array.isArray(item?.likedBy) ? item.likedBy : [];
+  const normalizedIsLiked =
+    typeof item?.isLiked === 'boolean'
+      ? item.isLiked
+      : typeof item?.liked === 'boolean'
+      ? item.liked
+      : undefined;
+
   return {
     ...item,
     id: getId(item),
@@ -452,18 +607,28 @@ const normalizeItem = (item, type) => {
     avatar: getAvatar(item),
     text: getDescription(item),
     images: getImages(item, type),
-    likes: item?.likes ?? item?.likeCount ?? 0,
+    likes: normalizedLikes,
+    likedBy: normalizedLikedBy,
+    ...(normalizedIsLiked !== undefined ? { isLiked: normalizedIsLiked } : {}),
     date: formatDate(item?.date || item?.createdAt),
     tags: Array.isArray(item?.tags) ? item.tags : [],
   };
 };
 
+const INITIAL_DUMMY_APPEALS = DUMMY_DONATIONS.map(item =>
+  normalizeItem(item, 'appeal'),
+);
+
 /* -------------------------------------------------------------------------- */
 /*                              Small components                              */
 /* -------------------------------------------------------------------------- */
 
-// Description with "Read more / Show less"
-const ExpandableText = ({ text, lines = DESCRIPTION_LINES, style }) => {
+const ExpandableText = ({
+  text,
+  prefixName,
+  lines = DESCRIPTION_LINES,
+  style,
+}) => {
   const [expanded, setExpanded] = useState(false);
   const [canExpand, setCanExpand] = useState(false);
 
@@ -473,14 +638,20 @@ const ExpandableText = ({ text, lines = DESCRIPTION_LINES, style }) => {
 
   return (
     <View style={styles.expandableWrap}>
-      <Body
-        text={text}
-        isHtml={isHtml}
-        style={style}
-        numberOfLines={expanded ? undefined : lines}
-      />
+      <View style={styles.captionRow}>
+        {!!prefixName && (
+          <Text style={styles.captionAuthor}>{prefixName} </Text>
+        )}
+        <View style={styles.captionBodyWrap}>
+          <Body
+            text={text}
+            isHtml={isHtml}
+            style={style}
+            numberOfLines={expanded ? undefined : lines}
+          />
+        </View>
+      </View>
 
-      {/* Invisible copy used only to measure the full line count */}
       <View
         style={styles.measureWrap}
         pointerEvents="none"
@@ -502,22 +673,13 @@ const ExpandableText = ({ text, lines = DESCRIPTION_LINES, style }) => {
           style={styles.readMoreButton}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
         >
-          <Text style={styles.readMoreText}>
-            {expanded ? 'Show less' : 'Read more'}
-          </Text>
-
-          <Ionicons
-            name={expanded ? 'chevron-up' : 'chevron-down'}
-            size={14}
-            color={colors.success}
-          />
+          <Text style={styles.readMoreText}>{expanded ? 'less' : 'more'}</Text>
         </TouchableOpacity>
       )}
     </View>
   );
 };
 
-// Swipeable horizontal image gallery with counter + dots
 const ImageCarousel = ({ images, width }) => {
   const [index, setIndex] = useState(0);
 
@@ -557,7 +719,6 @@ const ImageCarousel = ({ images, width }) => {
       </ScrollView>
 
       <View style={styles.counterBadge}>
-        <Ionicons name="images-outline" size={12} color="#FFFFFF" />
         <Text style={styles.counterText}>
           {index + 1}/{images.length}
         </Text>
@@ -580,7 +741,7 @@ const InfoRow = ({ icon, text }) => {
 
   return (
     <View style={styles.infoRow}>
-      <Ionicons name={icon} size={16} color={colors.success} />
+      <Ionicons name={icon} size={16} color={colors.textPrimary} />
       <Text style={styles.infoRowText}>{text}</Text>
     </View>
   );
@@ -591,20 +752,18 @@ const InfoRow = ({ icon, text }) => {
 /* -------------------------------------------------------------------------- */
 
 const FeedCard = memo(
-  ({ item, mediaWidth, userId, isLikeLoading, onOpen, onLike, onShare }) => {
+  ({ item, screenWidth, userId, onOpen, onLike, onShare }) => {
     const meta = TYPE_META[item.type] || TYPE_META.post;
+    const badgeText = item.badgeLabel || meta.label;
     const canLike = item.type === 'post' || item.type === 'blog';
-    const liked =
-      !!userId && Array.isArray(item.likedBy) && item.likedBy.includes(userId);
+    const liked = isItemLiked(item, userId);
 
-    // Appeal helpers
     const raised = Number(item.raisedAmount || 0);
     const target = Number(item.targetAmount || 0);
     const progress = target > 0 ? Math.min(100, (raised / target) * 100) : 0;
     const goalReached = target > 0 && raised >= target;
     const appealClosed = item.status === 'closed';
 
-    // Event helpers
     const startDate = formatDate(item.eventDate);
     const endDate = formatDate(item.eventEndDate);
     const dateRange =
@@ -617,288 +776,278 @@ const FeedCard = memo(
     const place = [item.venue, item.city].filter(Boolean).join(', ');
 
     return (
-      <View style={styles.cardWrapper}>
-        <View style={styles.card}>
-          {/* Header */}
-          <View style={styles.postHeader}>
-            <View style={styles.userInfo}>
+      <View style={styles.instaFeedItem}>
+        {/* Top IG Header */}
+        <View style={styles.postHeader}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => onOpen(item)}
+            style={styles.userInfo}
+          >
+            <View style={styles.avatarRing}>
               {item.avatar ? (
                 <Image source={{ uri: item.avatar }} style={styles.avatar} />
               ) : (
                 <View style={styles.avatarPlaceholder}>
                   <Ionicons
                     name="person"
-                    size={21}
+                    size={18}
                     color={colors.textSecondary}
                   />
                 </View>
               )}
-
-              <View style={styles.userTextContainer}>
-                <Text
-                  style={[typography.heading, styles.userName]}
-                  numberOfLines={1}
-                >
-                  {item.name}
-                </Text>
-
-                <Text style={styles.postTime}>{item.date || 'Community'}</Text>
-              </View>
             </View>
 
-            <View style={styles.badgeRow}>
-              {!!item.isFeatured && (
-                <View style={styles.featuredBadge}>
-                  <Ionicons name="star" size={12} color="#B86500" />
-                </View>
-              )}
-
-              <View
-                style={[
-                  styles.typeIndicator,
-                  { backgroundColor: `${meta.color}15` },
-                ]}
+            <View style={styles.userTextContainer}>
+              <Text
+                style={[typography.heading, styles.userName]}
+                numberOfLines={1}
               >
-                <Text style={[styles.typeIndicatorText, { color: meta.color }]}>
-                  {meta.label}
+                {item.name}
+              </Text>
+              {!!place && (
+                <Text style={styles.userSubLocation} numberOfLines={1}>
+                  {place}
                 </Text>
+              )}
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.badgeRow}>
+            {!!item.isFeatured && (
+              <View style={styles.featuredBadge}>
+                <Ionicons name="star" size={12} color="#B86500" />
               </View>
+            )}
+
+            <View
+              style={[
+                styles.typeIndicator,
+                { backgroundColor: `${meta.color}14` },
+              ]}
+            >
+              <Text style={[styles.typeIndicatorText, { color: meta.color }]}>
+                {badgeText}
+              </Text>
             </View>
           </View>
+        </View>
 
-          {/* Title */}
+        {/* Full-bleed Media */}
+        <ImageCarousel images={item.images} width={screenWidth} />
+
+        {/* IG Action Bar */}
+        <View style={styles.instaActionBar}>
+          <View style={styles.instaLeftActions}>
+            {canLike && (
+              <TouchableOpacity
+                style={styles.iconActionBtn}
+                onPress={() => onLike(item)}
+                activeOpacity={0.75}
+              >
+                <Ionicons
+                  name={liked ? 'heart' : 'heart-outline'}
+                  size={26}
+                  color={liked ? '#ED4956' : colors.textPrimary}
+                />
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={styles.iconActionBtn}
+              onPress={() => onShare(item)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="paper-plane-outline"
+                size={24}
+                color={colors.textPrimary}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Likes Count */}
+        {canLike && (
+          <View style={styles.instaMetaPad}>
+            <Text style={styles.likesCountText}>
+              {Number(item.likes || 0).toLocaleString('en-IN')}{' '}
+              {Number(item.likes || 0) === 1 ? 'like' : 'likes'}
+            </Text>
+          </View>
+        )}
+
+        {/* Title + Expandable Caption */}
+        <View style={styles.instaMetaPad}>
           {!!item.title && (
             <TouchableOpacity activeOpacity={0.8} onPress={() => onOpen(item)}>
               <Text style={styles.postTitle}>{item.title}</Text>
             </TouchableOpacity>
           )}
 
-          {/* Description (expandable) */}
-          <ExpandableText text={item.text} style={styles.postText} />
+          <ExpandableText
+            text={item.text}
+            prefixName={item.name}
+            style={styles.postText}
+          />
 
-          {/* Tags */}
           {!!item.tags?.length && (
             <View style={styles.hashtagRow}>
               {item.tags.map((tag, index) => (
-                <View key={`${item.id}-tag-${index}`} style={styles.tagChip}>
-                  <Text style={styles.hashtag}>
-                    #{String(tag).replace(/^#/, '')}
-                  </Text>
-                </View>
+                <Text key={`${item.id}-tag-${index}`} style={styles.hashtag}>
+                  #{String(tag).replace(/^#/, '')}{' '}
+                </Text>
               ))}
             </View>
           )}
+        </View>
 
-          {/* Images - horizontal swipe */}
-          <ImageCarousel images={item.images} width={mediaWidth} />
-
-          {/* Job details */}
-          {item.type === 'job' && (
-            <TouchableOpacity
-              activeOpacity={0.9}
-              onPress={() => onOpen(item)}
-              style={styles.extraInfo}
-            >
-              <InfoRow icon="business-outline" text={item.companyName} />
-              <InfoRow icon="location-outline" text={item.location} />
-              <InfoRow icon="briefcase-outline" text={item.jobType} />
-              <InfoRow icon="laptop-outline" text={item.workMode} />
-            </TouchableOpacity>
-          )}
-
-          {/* Event details */}
-          {item.type === 'event' && (
-            <View style={styles.extraInfo}>
-              <InfoRow icon="calendar-outline" text={dateRange} />
-              <InfoRow icon="time-outline" text={timeRange} />
-              <InfoRow icon="location-outline" text={place} />
-              <InfoRow
-                icon="people-outline"
-                text={item.organizer ? `Organizer: ${item.organizer}` : ''}
+        {/* Specialized Category Blocks */}
+        {item.type === 'job' && (
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => onOpen(item)}
+            style={styles.extraInfo}
+          >
+            <InfoRow icon="business-outline" text={item.companyName} />
+            <InfoRow icon="location-outline" text={item.location} />
+            <InfoRow icon="briefcase-outline" text={item.jobType} />
+            <InfoRow icon="laptop-outline" text={item.workMode} />
+            <View style={styles.inlineLinkRow}>
+              <Text style={styles.detailsText}>View job details</Text>
+              <Ionicons
+                name="chevron-forward"
+                size={15}
+                color={colors.textPrimary}
               />
-              <InfoRow
-                icon="ticket-outline"
-                text={
-                  item.maxAttendees ? `Max attendees: ${item.maxAttendees}` : ''
-                }
-              />
-
-              {!!item.registrationLink && (
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  style={styles.primaryButton}
-                  onPress={() => openLink(item.registrationLink)}
-                >
-                  <Text style={styles.primaryButtonText}>Register Now</Text>
-                  <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
-                </TouchableOpacity>
-              )}
             </View>
-          )}
+          </TouchableOpacity>
+        )}
 
-          {/* News source */}
-          {item.type === 'news' && !!item.source && (
-            <View style={styles.extraInfo}>
-              <InfoRow
-                icon="newspaper-outline"
-                text={`Source: ${item.source}`}
-              />
+        {item.type === 'event' && (
+          <View style={styles.extraInfo}>
+            <InfoRow icon="calendar-outline" text={dateRange} />
+            <InfoRow icon="time-outline" text={timeRange} />
+            <InfoRow icon="location-outline" text={place} />
+            <InfoRow
+              icon="people-outline"
+              text={item.organizer ? `Organizer: ${item.organizer}` : ''}
+            />
+            <InfoRow
+              icon="ticket-outline"
+              text={
+                item.maxAttendees ? `Max attendees: ${item.maxAttendees}` : ''
+              }
+            />
+          </View>
+        )}
 
-              {!!item.sourceUrl && (
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  style={styles.primaryButton}
-                  onPress={() => openLink(item.sourceUrl)}
-                >
-                  <Text style={styles.primaryButtonText}>Read Source</Text>
-                  <Ionicons name="open-outline" size={15} color="#FFFFFF" />
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
+        {item.type === 'news' && !!item.source && (
+          <View style={styles.extraInfo}>
+            <InfoRow icon="newspaper-outline" text={`Source: ${item.source}`} />
 
-          {/* Appeal details */}
-          {item.type === 'appeal' && (
-            <TouchableOpacity
-              activeOpacity={0.9}
-              onPress={() => onOpen(item)}
-              style={styles.appealInfo}
-            >
-              <View style={styles.appealTopRow}>
+            {!!item.sourceUrl && (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={styles.primaryButton}
+                onPress={() => openLink(item.sourceUrl)}
+              >
+                <Text style={styles.primaryButtonText}>Read Source</Text>
+                <Ionicons name="open-outline" size={15} color="#FFFFFF" />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {item.type === 'appeal' && (
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => onOpen(item)}
+            style={styles.appealInfo}
+          >
+            <View style={styles.appealTopRow}>
+              <View
+                style={[
+                  styles.statusChip,
+                  appealClosed ? styles.statusClosed : styles.statusActive,
+                ]}
+              >
                 <View
                   style={[
-                    styles.statusChip,
-                    appealClosed ? styles.statusClosed : styles.statusActive,
+                    styles.statusDot,
+                    { backgroundColor: appealClosed ? '#B42318' : '#167A43' },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.statusText,
+                    { color: appealClosed ? '#B42318' : '#167A43' },
                   ]}
                 >
-                  <View
-                    style={[
-                      styles.statusDot,
-                      { backgroundColor: appealClosed ? '#B42318' : '#167A43' },
-                    ]}
-                  />
-                  <Text
-                    style={[
-                      styles.statusText,
-                      { color: appealClosed ? '#B42318' : '#167A43' },
-                    ]}
-                  >
-                    {appealClosed ? 'Closed' : 'Active'}
-                  </Text>
-                </View>
-
-                {!!item.deadline && (
-                  <Text style={styles.deadlineText}>
-                    {appealClosed ? 'Ended' : 'Ends'}{' '}
-                    {formatDate(item.deadline)}
-                  </Text>
-                )}
-              </View>
-
-              <View style={styles.amountRow}>
-                <Text style={styles.amountText}>{formatMoney(raised)}</Text>
-                <Text style={styles.amountLabel}> raised</Text>
-              </View>
-
-              {target > 0 && (
-                <>
-                  <View style={styles.progressTrack}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        {
-                          width: `${progress}%`,
-                          backgroundColor: goalReached ? '#167A43' : '#2E9E5B',
-                        },
-                      ]}
-                    />
-                  </View>
-
-                  <View style={styles.progressMeta}>
-                    <Text style={styles.targetText}>
-                      Goal {formatMoney(target)}
-                    </Text>
-
-                    <Text style={styles.progressPercent}>
-                      {goalReached
-                        ? 'Goal reached 🎉'
-                        : `${Math.round(progress)}%`}
-                    </Text>
-                  </View>
-                </>
-              )}
-
-              {Number(item.remainingAmount) > 0 && (
-                <Text style={styles.remainingText}>
-                  {formatMoney(item.remainingAmount)} still needed
+                  {appealClosed ? 'Closed' : 'Active'}
                 </Text>
-              )}
-
-              {Number(item.donorCount) > 0 && (
-                <Text style={styles.remainingText}>
-                  {item.donorCount} donors
-                </Text>
-              )}
-
-              <View style={styles.primaryButton}>
-                <Text style={styles.primaryButtonText}>View Appeal</Text>
-                <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
               </View>
-            </TouchableOpacity>
-          )}
 
-          {/* Footer */}
-          <View style={styles.postFooter}>
-            <View style={styles.footerLeft}>
-              {canLike ? (
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={() => onLike(item)}
-                  disabled={isLikeLoading}
-                  activeOpacity={0.7}
-                >
-                  {isLikeLoading ? (
-                    <ActivityIndicator size="small" color={colors.danger} />
-                  ) : (
-                    <Ionicons
-                      name={liked ? 'heart' : 'heart-outline'}
-                      size={21}
-                      color={colors.danger}
-                    />
-                  )}
-
-                  <Text style={styles.actionText}>{item.likes}</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={() => onOpen(item)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.detailsText}>View details</Text>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={15}
-                    color={colors.success}
-                  />
-                </TouchableOpacity>
+              {!!item.deadline && (
+                <Text style={styles.deadlineText}>
+                  {appealClosed ? 'Ended' : 'Ends'} {formatDate(item.deadline)}
+                </Text>
               )}
             </View>
 
-            <TouchableOpacity
-              activeOpacity={0.7}
-              style={styles.shareButton}
-              onPress={() => onShare(item)}
-            >
-              <Ionicons
-                name="share-social-outline"
-                size={19}
-                color={colors.success}
-              />
+            <View style={styles.amountRow}>
+              <Text style={styles.amountText}>{formatMoney(raised)}</Text>
+              <Text style={styles.amountLabel}> raised</Text>
+            </View>
 
-              <Text style={styles.shareText}>Share</Text>
-            </TouchableOpacity>
-          </View>
+            {target > 0 && (
+              <>
+                <View style={styles.progressTrack}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      {
+                        width: `${progress}%`,
+                        backgroundColor: goalReached ? '#167A43' : '#2E9E5B',
+                      },
+                    ]}
+                  />
+                </View>
+
+                <View style={styles.progressMeta}>
+                  <Text style={styles.targetText}>
+                    Goal {formatMoney(target)}
+                  </Text>
+
+                  <Text style={styles.progressPercent}>
+                    {goalReached
+                      ? 'Goal reached 🎉'
+                      : `${Math.round(progress)}%`}
+                  </Text>
+                </View>
+              </>
+            )}
+
+            {Number(item.remainingAmount) > 0 && (
+              <Text style={styles.remainingText}>
+                {formatMoney(item.remainingAmount)} still needed
+              </Text>
+            )}
+
+            {Number(item.donorCount) > 0 && (
+              <Text style={styles.remainingText}>{item.donorCount} donors</Text>
+            )}
+
+            <View style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>View Appeal</Text>
+              <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {/* Timestamp at bottom like IG */}
+        <View style={styles.instaMetaPad}>
+          <Text style={styles.postTime}>{item.date || 'Community'}</Text>
         </View>
       </View>
     );
@@ -910,22 +1059,39 @@ const FeedCard = memo(
 /* -------------------------------------------------------------------------- */
 
 const CommunityPostCard = ({ navigation }) => {
+  const route = useRoute();
   const { width: screenWidth } = useWindowDimensions();
 
-  // card width -> inner media width (wrapper padding, card border + padding)
-  const cardWidth = Math.min(screenWidth - WRAPPER_PADDING * 2, CARD_MAX_WIDTH);
-  const mediaWidth = cardWidth - (CARD_PADDING + CARD_BORDER) * 2;
+  const contentTypeParam = route?.params?.contentType;
 
-  const [activeTab, setActiveTab] = useState('All');
+  const getInitialTab = () => {
+    if (contentTypeParam === 'Post') return 'Post';
+    if (contentTypeParam === 'Blogs') return 'Post&Blogs';
+    if (contentTypeParam === 'News') return 'News&Events';
+    if (contentTypeParam === 'Events') return 'News&Events';
+    if (contentTypeParam === 'JobsCareer') return 'Jobs&Career';
+    if (contentTypeParam === 'Donation') return 'Donation&Appeal';
+    if (contentTypeParam === 'Appeal') return 'Donation&Appeal';
+    return 'All';
+  };
+
+  const [activeTab, setActiveTab] = useState(getInitialTab());
 
   const [posts, setPosts] = useState([]);
   const [blogs, setBlogs] = useState([]);
   const [jobs, setJobs] = useState([]);
-  const [appeals, setAppeals] = useState([]);
+  const [appeals, setAppeals] = useState(INITIAL_DUMMY_APPEALS);
   const [newsEvents, setNewsEvents] = useState([]);
+
+  const [pagination, setPagination] = useState(createInitialPagination);
+  const paginationRef = useRef(pagination);
+  paginationRef.current = pagination;
+
+  const likeRequestRef = useRef({});
+  const onEndReachedCalledDuringMomentum = useRef(false);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [actionLoading, setActionLoading] = useState(null);
   const [error, setError] = useState('');
 
   const reduxUser = useSelector(
@@ -933,6 +1099,7 @@ const CommunityPostCard = ({ navigation }) => {
   );
 
   const userId = reduxUser?._id || reduxUser?.id;
+  const user = reduxUser;
 
   const [showVerificationBanner, setShowVerificationBanner] = useState(false);
 
@@ -942,172 +1109,353 @@ const CommunityPostCard = ({ navigation }) => {
     }
   }, [reduxUser]);
 
-  // Fetch News & Events  (response.data = { data: [...] })
-  const fetchNewsEvents = async () => {
-    try {
-      const response = await getAllNewsEvents({
-        page: 1,
-        limit: PAGE_LIMIT,
-        isPagination: true,
-        sortBy: 'latest',
-        status: 'published',
-      });
-
-      if (!response?.success) {
-        throw new Error(response?.message || 'News & Events fetch failed');
-      }
-
-      setNewsEvents(
-        getArray(response, 'data').map(item =>
-          normalizeItem(item, item?.type === 'event' ? 'event' : 'news'),
-        ),
-      );
-    } catch (err) {
-      console.log('News & Events API Error:', err?.message);
-      setNewsEvents([]);
+  useEffect(() => {
+    if (contentTypeParam) {
+      const newTab =
+        contentTypeParam === 'Post'
+          ? 'Post'
+          : contentTypeParam === 'Blogs'
+          ? 'Post&Blogs'
+          : contentTypeParam === 'News'
+          ? 'News&Events'
+          : contentTypeParam === 'Events'
+          ? 'News&Events'
+          : contentTypeParam === 'JobsCareer'
+          ? 'Jobs&Career'
+          : contentTypeParam === 'Donation'
+          ? 'Donation&Appeal'
+          : contentTypeParam === 'Appeal'
+          ? 'Donation&Appeal'
+          : 'All';
+      setActiveTab(newTab);
     }
-  };
+  }, [contentTypeParam]);
 
-  // Fetch Posts
-  const fetchPosts = async () => {
-    try {
-      const response = await getAllPosts({
-        page: 1,
-        limit: PAGE_LIMIT,
-        isPagination: true,
-        sortBy: 'latest',
-      });
-
-      if (!response?.success) {
-        throw new Error(response?.message || 'Posts fetch failed');
-      }
-
-      setPosts(
-        getArray(response, 'posts').map(item => normalizeItem(item, 'post')),
-      );
-    } catch (err) {
-      console.log('Posts API Error:', err?.message);
-      setPosts([]);
-    }
-  };
-
-  // Fetch Blogs
-  const fetchBlogs = async () => {
-    try {
-      const response = await getAllBlogs({
-        page: 1,
-        limit: PAGE_LIMIT,
-        isPagination: true,
-        sortBy: 'latest',
-      });
-
-      if (!response?.success) {
-        throw new Error(response?.message || 'Blogs fetch failed');
-      }
-
-      setBlogs(
-        getArray(response, 'blogs').map(item => normalizeItem(item, 'blog')),
-      );
-    } catch (err) {
-      console.log('Blogs API Error:', err?.message);
-      setBlogs([]);
-    }
-  };
-
-  // Fetch Personalized Jobs
-  const fetchJobs = async () => {
-    try {
-      const response = await getPersonalizedJobs({
-        page: 1,
-        limit: PAGE_LIMIT,
-      });
-
-      if (!response?.success) {
-        throw new Error(response?.message || 'Jobs fetch failed');
-      }
-
-      setJobs(
-        getArray(response, 'jobs').map(item => normalizeItem(item, 'job')),
-      );
-    } catch (err) {
-      console.log('Jobs API Error:', err?.message);
-      setJobs([]);
-    }
-  };
-
-  // Fetch Appeals
-  const fetchAppeals = async () => {
-    try {
-      const response = await getAllAppeals({
-        page: 1,
-        limit: PAGE_LIMIT,
-        isPagination: true,
-        sortBy: 'latest',
-      });
-
-      if (!response?.success) {
-        throw new Error(response?.message || 'Appeals fetch failed');
-      }
-
-      setAppeals(
-        getArray(response, 'appeals').map(item =>
-          normalizeItem(item, 'appeal'),
-        ),
-      );
-    } catch (err) {
-      console.log('Appeals API Error:', err?.message);
-      setAppeals([]);
-    }
-  };
-
-  // Fetch All APIs
-  const fetchAllData = useCallback(async (isRefresh = false) => {
-    if (isRefresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-
-    setError('');
-
-    try {
-      await Promise.all([
-        fetchPosts(),
-        fetchBlogs(),
-        fetchJobs(),
-        fetchAppeals(),
-        fetchNewsEvents(),
-      ]);
-    } catch (err) {
-      console.log('Community Feed Error:', err);
-      setError('Unable to load community feed.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+  const setFeedPagination = useCallback((feedKey, patch) => {
+    setPagination(prev => ({
+      ...prev,
+      [feedKey]: { ...prev[feedKey], ...patch },
+    }));
   }, []);
+
+  const fetchNewsEvents = useCallback(
+    async ({ page = 1, append = false } = {}) => {
+      if (append) setFeedPagination('newsEvents', { loadingMore: true });
+
+      try {
+        const response = await getAllNewsEvents({
+          page,
+          limit: PAGE_LIMIT,
+          isPagination: true,
+          sortBy: 'latest',
+          status: 'published',
+        });
+
+        if (!response?.success) {
+          throw new Error(response?.message || 'News & Events fetch failed');
+        }
+
+        const rawList = getArray(response, 'data');
+        const normalized = rawList.map(item =>
+          normalizeItem(item, item?.type === 'event' ? 'event' : 'news'),
+        );
+        const hasMore = getHasMore(response, rawList.length, page, PAGE_LIMIT);
+
+        setNewsEvents(prev =>
+          append ? mergeUniqueByKey(prev, normalized) : normalized,
+        );
+        setFeedPagination('newsEvents', {
+          page,
+          hasMore,
+          loadingMore: false,
+        });
+      } catch (err) {
+        console.log('News & Events API Error:', err?.message);
+        if (!append) setNewsEvents([]);
+        setFeedPagination('newsEvents', {
+          hasMore: append ? paginationRef.current.newsEvents.hasMore : false,
+          loadingMore: false,
+        });
+      }
+    },
+    [setFeedPagination],
+  );
+
+  const fetchPosts = useCallback(
+    async ({ page = 1, append = false } = {}) => {
+      if (append) setFeedPagination('posts', { loadingMore: true });
+
+      try {
+        const response = await getAllPosts({
+          page,
+          limit: PAGE_LIMIT,
+          isPagination: true,
+          sortBy: 'latest',
+        });
+
+        if (!response?.success) {
+          throw new Error(response?.message || 'Posts fetch failed');
+        }
+
+        const rawList = getArray(response, 'posts');
+        const normalized = rawList.map(item => normalizeItem(item, 'post'));
+        const hasMore = getHasMore(response, rawList.length, page, PAGE_LIMIT);
+
+        setPosts(prev =>
+          append ? mergeUniqueByKey(prev, normalized) : normalized,
+        );
+        setFeedPagination('posts', {
+          page,
+          hasMore,
+          loadingMore: false,
+        });
+      } catch (err) {
+        console.log('Posts API Error:', err?.message);
+        if (!append) setPosts([]);
+        setFeedPagination('posts', {
+          hasMore: append ? paginationRef.current.posts.hasMore : false,
+          loadingMore: false,
+        });
+      }
+    },
+    [setFeedPagination],
+  );
+
+  const fetchBlogs = useCallback(
+    async ({ page = 1, append = false } = {}) => {
+      if (append) setFeedPagination('blogs', { loadingMore: true });
+
+      try {
+        const response = await getAllBlogs({
+          page,
+          limit: PAGE_LIMIT,
+          isPagination: true,
+          sortBy: 'latest',
+        });
+
+        if (!response?.success) {
+          throw new Error(response?.message || 'Blogs fetch failed');
+        }
+
+        const rawList = getArray(response, 'blogs');
+        const normalized = rawList.map(item => normalizeItem(item, 'blog'));
+        const hasMore = getHasMore(response, rawList.length, page, PAGE_LIMIT);
+
+        setBlogs(prev =>
+          append ? mergeUniqueByKey(prev, normalized) : normalized,
+        );
+        setFeedPagination('blogs', {
+          page,
+          hasMore,
+          loadingMore: false,
+        });
+      } catch (err) {
+        console.log('Blogs API Error:', err?.message);
+        if (!append) setBlogs([]);
+        setFeedPagination('blogs', {
+          hasMore: append ? paginationRef.current.blogs.hasMore : false,
+          loadingMore: false,
+        });
+      }
+    },
+    [setFeedPagination],
+  );
+
+  const fetchJobs = useCallback(
+    async ({ page = 1, append = false } = {}) => {
+      if (append) setFeedPagination('jobs', { loadingMore: true });
+
+      try {
+        const response = await getPersonalizedJobs({
+          page,
+          limit: PAGE_LIMIT,
+        });
+
+        if (!response?.success) {
+          throw new Error(response?.message || 'Jobs fetch failed');
+        }
+
+        const rawList = getArray(response, 'jobs');
+        const normalized = rawList.map(item => normalizeItem(item, 'job'));
+        const hasMore = getHasMore(response, rawList.length, page, PAGE_LIMIT);
+
+        setJobs(prev =>
+          append ? mergeUniqueByKey(prev, normalized) : normalized,
+        );
+        setFeedPagination('jobs', {
+          page,
+          hasMore,
+          loadingMore: false,
+        });
+      } catch (err) {
+        console.log('Jobs API Error:', err?.message);
+        if (!append) setJobs([]);
+        setFeedPagination('jobs', {
+          hasMore: append ? paginationRef.current.jobs.hasMore : false,
+          loadingMore: false,
+        });
+      }
+    },
+    [setFeedPagination],
+  );
+
+  const fetchAppeals = useCallback(
+    async ({ page = 1, append = false } = {}) => {
+      if (append) setFeedPagination('appeals', { loadingMore: true });
+
+      try {
+        const response = await getAllAppeals({
+          page,
+          limit: PAGE_LIMIT,
+          isPagination: true,
+          sortBy: 'latest',
+        });
+
+        if (!response?.success) {
+          throw new Error(response?.message || 'Appeals fetch failed');
+        }
+
+        const rawList = getArray(response, 'appeals');
+        const normalized = rawList.map(item => normalizeItem(item, 'appeal'));
+        const combined = mergeUniqueByKey(
+          [],
+          [...INITIAL_DUMMY_APPEALS, ...normalized],
+        ).sort(sortByFeedPriority);
+        const hasMore = getHasMore(response, rawList.length, page, PAGE_LIMIT);
+
+        setAppeals(prev =>
+          append
+            ? mergeUniqueByKey(prev, normalized).sort(sortByFeedPriority)
+            : combined,
+        );
+        setFeedPagination('appeals', {
+          page,
+          hasMore,
+          loadingMore: false,
+        });
+      } catch (err) {
+        console.log('Appeals API Error:', err?.message);
+        if (!append) setAppeals(INITIAL_DUMMY_APPEALS);
+        setFeedPagination('appeals', {
+          hasMore: append ? paginationRef.current.appeals.hasMore : false,
+          loadingMore: false,
+        });
+      }
+    },
+    [setFeedPagination],
+  );
+
+  const fetchAllData = useCallback(
+    async (isRefresh = false) => {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      setError('');
+      setPagination(createInitialPagination());
+      onEndReachedCalledDuringMomentum.current = false;
+
+      try {
+        await Promise.all([
+          fetchPosts({ page: 1, append: false }),
+          fetchBlogs({ page: 1, append: false }),
+          fetchJobs({ page: 1, append: false }),
+          fetchAppeals({ page: 1, append: false }),
+          fetchNewsEvents({ page: 1, append: false }),
+        ]);
+      } catch (err) {
+        console.log('Community Feed Error:', err);
+        setError('Unable to load community feed.');
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [fetchPosts, fetchBlogs, fetchJobs, fetchAppeals, fetchNewsEvents],
+  );
 
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
 
-  // Combine all data (newest first)
-  const allItems = useMemo(() => {
-    return [...posts, ...blogs, ...jobs, ...appeals, ...newsEvents].sort(
-      (a, b) =>
-        new Date(b?.createdAt || 0).getTime() -
-        new Date(a?.createdAt || 0).getTime(),
+  const activeFeedKeys = useMemo(() => {
+    switch (activeTab) {
+      case 'Post&Blogs':
+        return ['posts', 'blogs'];
+      case 'Jobs&Career':
+        return ['jobs'];
+      case 'Donation&Appeal':
+        return ['appeals'];
+      case 'News&Events':
+        return ['newsEvents'];
+      default:
+        return FEEDS;
+    }
+  }, [activeTab]);
+
+  const isAnyLoadingMore = useMemo(
+    () => activeFeedKeys.some(key => pagination[key]?.loadingMore),
+    [activeFeedKeys, pagination],
+  );
+
+  const hasMoreForActiveTab = useMemo(
+    () => activeFeedKeys.some(key => pagination[key]?.hasMore),
+    [activeFeedKeys, pagination],
+  );
+
+  const handleLoadMore = useCallback(async () => {
+    if (loading || refreshing) return;
+
+    const currentPagination = paginationRef.current;
+
+    const targets = activeFeedKeys.filter(key => {
+      const state = currentPagination[key];
+      return state && state.hasMore && !state.loadingMore;
+    });
+
+    if (!targets.length) return;
+
+    const fetchers = {
+      posts: fetchPosts,
+      blogs: fetchBlogs,
+      jobs: fetchJobs,
+      appeals: fetchAppeals,
+      newsEvents: fetchNewsEvents,
+    };
+
+    await Promise.all(
+      targets.map(key =>
+        fetchers[key]({
+          page: currentPagination[key].page + 1,
+          append: true,
+        }),
+      ),
     );
+  }, [
+    loading,
+    refreshing,
+    activeFeedKeys,
+    fetchPosts,
+    fetchBlogs,
+    fetchJobs,
+    fetchAppeals,
+    fetchNewsEvents,
+  ]);
+
+  const allItems = useMemo(() => {
+    return mergeUniqueByKey(
+      [],
+      [...appeals, ...posts, ...blogs, ...jobs, ...newsEvents],
+    ).sort(sortByFeedPriority);
   }, [posts, blogs, jobs, appeals, newsEvents]);
 
-  // Tab filtering
   const filteredItems = useMemo(() => {
     switch (activeTab) {
       case 'Post&Blogs':
-        return [...posts, ...blogs].sort(
-          (a, b) =>
-            new Date(b?.createdAt || 0).getTime() -
-            new Date(a?.createdAt || 0).getTime(),
+        return mergeUniqueByKey([], [...posts, ...blogs]).sort(
+          sortByFeedPriority,
         );
 
       case 'Jobs&Career':
@@ -1124,24 +1472,28 @@ const CommunityPostCard = ({ navigation }) => {
     }
   }, [activeTab, allItems, posts, blogs, jobs, appeals, newsEvents]);
 
-  // Share API + Native Share
   const handleShare = useCallback(async item => {
-    if (!item?.id) return;
+    const itemId = item?.id || getId(item);
+    if (!itemId) return;
 
     try {
-      const message = [item?.title, stripHtml(item?.text), item?.images?.[0]]
+      const shareUrl = getShareUrl({ ...item, id: itemId });
+      const sharePayload = buildSharePayload(item, itemId, shareUrl);
+      const summary = [item?.title, stripHtml(item?.text)]
         .filter(Boolean)
         .join('\n\n');
+      const message = [summary, shareUrl].filter(Boolean).join('\n\n');
 
       const result = await Share.share({
-        message: message || 'Check this out!',
+        message: message || shareUrl,
+        url: shareUrl,
         title: item?.title || 'Share Community Content',
       });
 
       if (result?.action !== Share.sharedAction) return;
 
       if (item.type === 'post') {
-        const response = await sharePost(item.id);
+        const response = await sharePost(itemId, sharePayload);
 
         if (!response?.success) {
           console.log('Post Share API:', response?.message);
@@ -1149,7 +1501,7 @@ const CommunityPostCard = ({ navigation }) => {
       }
 
       if (item.type === 'blog') {
-        const response = await shareBlog(item.id);
+        const response = await shareBlog(itemId, sharePayload);
 
         if (!response?.success) {
           console.log('Blog Share API:', response?.message);
@@ -1160,53 +1512,123 @@ const CommunityPostCard = ({ navigation }) => {
     }
   }, []);
 
-  // Like API
   const handleLike = useCallback(
     async item => {
-      if (!item?.id || actionLoading) return;
+      const itemId = item?.id || getId(item);
+      if (!itemId) return;
 
       if (item.type !== 'post' && item.type !== 'blog') return;
 
-      setActionLoading(item.id);
+      const setter = item.type === 'post' ? setPosts : setBlogs;
+      const reqKey = `${item.type}-${itemId}`;
+      const requestSeq = (likeRequestRef.current[reqKey] || 0) + 1;
+      likeRequestRef.current[reqKey] = requestSeq;
+
+      const currentLiked = isItemLiked(item, userId);
+      const nextLiked = !currentLiked;
+      const currentLikes = Number(item?.likes ?? item?.likeCount ?? 0);
+      const nextLikes = Math.max(0, currentLikes + (nextLiked ? 1 : -1));
+      const currentLikedBy = Array.isArray(item?.likedBy) ? item.likedBy : [];
+      const nextLikedBy = userId
+        ? nextLiked
+          ? Array.from(new Set([...currentLikedBy, userId]))
+          : currentLikedBy.filter(id => id !== userId)
+        : currentLikedBy;
+
+      setter(prev =>
+        prev.map(entry => {
+          const entryId = entry?.id || getId(entry);
+          if (entryId !== itemId) return entry;
+          return {
+            ...entry,
+            isLiked: nextLiked,
+            likes: nextLikes,
+            likedBy: nextLikedBy,
+          };
+        }),
+      );
 
       try {
-        let response;
+        const response =
+          item.type === 'post'
+            ? await likePost(itemId)
+            : await likeBlog(itemId, {
+                createdBy: item?.createdBy || '',
+                description: item?.description || item?.text || '',
+              });
 
-        if (item.type === 'post') {
-          response = await likePost(item.id);
-        } else {
-          response = await likeBlog(item.id, {
-            createdBy: item?.createdBy || '',
-            description: item?.description || item?.text || '',
-          });
-        }
+        if (likeRequestRef.current[reqKey] !== requestSeq) return;
 
         if (!response?.success) {
           throw new Error(response?.message || 'Like failed');
         }
 
-        // Refresh only the relevant list
-        if (item.type === 'post') {
-          await fetchPosts();
-        } else {
-          await fetchBlogs();
-        }
+        const serverData = response?.data;
+        const payload =
+          serverData?.post || serverData?.blog || serverData || {};
+
+        setter(prev =>
+          prev.map(entry => {
+            const entryId = entry?.id || getId(entry);
+            if (entryId !== itemId) return entry;
+
+            const serverIsLiked =
+              typeof payload?.isLiked === 'boolean'
+                ? payload.isLiked
+                : typeof serverData?.isLiked === 'boolean'
+                ? serverData.isLiked
+                : nextLiked;
+
+            const serverLikes =
+              typeof payload?.likes === 'number'
+                ? payload.likes
+                : typeof payload?.likeCount === 'number'
+                ? payload.likeCount
+                : typeof serverData?.likes === 'number'
+                ? serverData.likes
+                : nextLikes;
+
+            const serverLikedBy = Array.isArray(payload?.likedBy)
+              ? payload.likedBy
+              : Array.isArray(serverData?.likedBy)
+              ? serverData.likedBy
+              : nextLikedBy;
+
+            return {
+              ...entry,
+              isLiked: serverIsLiked,
+              likes: serverLikes,
+              likedBy: serverLikedBy,
+            };
+          }),
+        );
       } catch (err) {
         console.log('Like API Error:', err?.message);
-      } finally {
-        setActionLoading(null);
+
+        if (likeRequestRef.current[reqKey] !== requestSeq) return;
+
+        setter(prev =>
+          prev.map(entry => {
+            const entryId = entry?.id || getId(entry);
+            if (entryId !== itemId) return entry;
+            return {
+              ...entry,
+              isLiked: currentLiked,
+              likes: currentLikes,
+              likedBy: currentLikedBy,
+            };
+          }),
+        );
       }
     },
-    [actionLoading],
+    [userId],
   );
 
-  // Bottom Navigation
   const handleTabPress = key => {
     if (key === 'Dashboard') return;
     navigation?.navigate(key);
   };
 
-  // Open Details
   const handleItemPress = useCallback(
     item => {
       if (item.type === 'post') {
@@ -1214,17 +1636,27 @@ const CommunityPostCard = ({ navigation }) => {
       } else if (item.type === 'blog') {
         navigation?.navigate('BlogDetails', { blogId: item.id, blog: item });
       } else if (item.type === 'job') {
-        navigation?.navigate('JobDetails', { jobId: item.id, job: item });
+        navigation?.navigate('JobsCareerDetails', {
+          jobId: item.id,
+          job: item,
+        });
       } else if (item.type === 'appeal') {
         navigation?.navigate('AppealDetails', {
           appealId: item.id,
           appeal: item,
         });
       } else if (item.type === 'news' || item.type === 'event') {
-        navigation?.navigate('NewsEventDetails', {
-          newsEventId: item.id,
-          newsEvent: item,
-        });
+        if (item.type === 'event') {
+          navigation?.navigate('EventDetails', {
+            eventId: item.id,
+            event: item,
+          });
+        } else {
+          navigation?.navigate('NewsDetails', {
+            newsId: item.id,
+            news: item,
+          });
+        }
       }
     },
     [navigation],
@@ -1234,33 +1666,44 @@ const CommunityPostCard = ({ navigation }) => {
     ({ item }) => (
       <FeedCard
         item={item}
-        mediaWidth={mediaWidth}
+        screenWidth={screenWidth}
         userId={userId}
-        isLikeLoading={actionLoading === item.id}
         onOpen={handleItemPress}
         onLike={handleLike}
         onShare={handleShare}
       />
     ),
-    [
-      mediaWidth,
-      userId,
-      actionLoading,
-      handleItemPress,
-      handleLike,
-      handleShare,
-    ],
+    [screenWidth, userId, handleItemPress, handleLike, handleShare],
   );
+
+  const renderFooter = useCallback(() => {
+    if (!filteredItems.length) return null;
+
+    if (isAnyLoadingMore) {
+      return (
+        <View style={styles.footerLoader}>
+          <ActivityIndicator size="small" color={colors.textPrimary} />
+          <Text style={styles.footerLoaderText}>Loading more...</Text>
+        </View>
+      );
+    }
+
+    if (!hasMoreForActiveTab) {
+      return <Text style={styles.endOfListText}>You’re all caught up</Text>;
+    }
+
+    return null;
+  }, [filteredItems.length, isAnyLoadingMore, hasMoreForActiveTab]);
 
   return (
     <View style={styles.container}>
       <CommunityPostHeader
         onMenuPress={() => navigation?.openDrawer?.()}
+        profilePic={user?.profilePic}
         onBellPress={() => navigation?.navigate('Notifications')}
         onProfilePress={() => navigation?.navigate('ProfileScreen')}
       />
 
-      {/* WhatsApp Verification Banner */}
       {showVerificationBanner && (
         <View style={styles.verificationBanner}>
           <View style={styles.bannerContent}>
@@ -1318,7 +1761,7 @@ const CommunityPostCard = ({ navigation }) => {
         {/* Feed */}
         {loading ? (
           <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color={colors.success} />
+            <ActivityIndicator size="large" color={colors.textPrimary} />
 
             <Text style={styles.loadingText}>Loading community feed...</Text>
           </View>
@@ -1327,6 +1770,16 @@ const CommunityPostCard = ({ navigation }) => {
             data={filteredItems}
             keyExtractor={(item, index) => `${item.type}-${item.id || index}`}
             renderItem={renderCard}
+            ListFooterComponent={renderFooter}
+            onEndReachedThreshold={0.4}
+            onMomentumScrollBegin={() => {
+              onEndReachedCalledDuringMomentum.current = false;
+            }}
+            onEndReached={() => {
+              if (onEndReachedCalledDuringMomentum.current) return;
+              onEndReachedCalledDuringMomentum.current = true;
+              handleLoadMore();
+            }}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
             initialNumToRender={4}
@@ -1335,8 +1788,8 @@ const CommunityPostCard = ({ navigation }) => {
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={() => fetchAllData(true)}
-                colors={[colors.success]}
-                tintColor={colors.success}
+                colors={[colors.textPrimary]}
+                tintColor={colors.textPrimary}
               />
             }
             ListEmptyComponent={
@@ -1377,87 +1830,68 @@ const CommunityPostCard = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F6F3',
+    backgroundColor: colors.white || '#FFFFFF',
   },
 
   body: {
     flex: 1,
-    marginTop: -22,
-    backgroundColor: colors.backgroundDark,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    overflow: 'hidden',
+    backgroundColor: colors.white || '#FFFFFF',
   },
 
   tabBarWrapper: {
-    paddingTop: 14,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.neutral.border,
+    paddingVertical: 8,
+    backgroundColor: colors.white || '#FFFFFF',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#DBDBDB',
   },
 
   tabScrollContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     gap: 8,
     alignItems: 'center',
   },
 
   tabPill: {
-    paddingHorizontal: 15,
-    paddingVertical: 9,
-    borderRadius: 20,
-    backgroundColor: colors.cardColor,
-    borderWidth: 1,
-    borderColor: colors.neutral.border,
+    paddingHorizontal: 13,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#EFEFEF',
   },
 
   tabPillActive: {
-    backgroundColor: colors.success,
-    borderColor: colors.success,
+    backgroundColor: '#084e28',
   },
 
   tabText: {
     fontSize: 12.5,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: '#262626',
   },
 
   tabTextActive: {
-    color: colors.white,
+    color: '#FFFFFF',
   },
 
   scrollContent: {
     paddingBottom: 24,
-    paddingTop: 10,
     flexGrow: 1,
   },
 
-  cardWrapper: {
-    paddingHorizontal: WRAPPER_PADDING,
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-
-  card: {
+  instaFeedItem: {
     width: '100%',
-    maxWidth: CARD_MAX_WIDTH,
-    backgroundColor: colors.cardColor,
-    borderRadius: 22,
-    padding: CARD_PADDING,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 4,
-    borderWidth: CARD_BORDER,
-    borderColor: colors.neutral.border,
+    backgroundColor: colors.white || '#FFFFFF',
+    paddingBottom: 14,
+    marginBottom: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#EFEFEF',
   },
 
   postHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 13,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     gap: 8,
   },
 
@@ -1467,18 +1901,29 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
+  avatarRing: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    padding: 1.5,
+    borderWidth: 1.5,
+    borderColor: '#E1306C',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 31,
+    height: 31,
+    borderRadius: 15.5,
     backgroundColor: colors.inputBorder,
   },
 
   avatarPlaceholder: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#E8F5EC',
+    width: 31,
+    height: 31,
+    borderRadius: 15.5,
+    backgroundColor: '#F2F2F2',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1489,15 +1934,15 @@ const styles = StyleSheet.create({
   },
 
   userName: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '700',
-    color: colors.textPrimary,
+    color: '#121212',
   },
 
-  postTime: {
+  userSubLocation: {
     fontSize: 11,
-    color: colors.textMuted,
-    marginTop: 3,
+    color: '#737373',
+    marginTop: 1,
   },
 
   badgeRow: {
@@ -1507,132 +1952,45 @@ const styles = StyleSheet.create({
   },
 
   featuredBadge: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: '#FFF3E0',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   typeIndicator: {
-    paddingHorizontal: 11,
-    paddingVertical: 5,
-    borderRadius: 15,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
 
   typeIndicatorText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
   },
 
-  postTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginBottom: 7,
-    lineHeight: 22,
-  },
-
-  /* Expandable text */
-  expandableWrap: {
-    position: 'relative',
-  },
-
-  measureWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    opacity: 0,
-  },
-
-  postText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 21,
-    marginBottom: 6,
-  },
-
-  richBold: {
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-
-  richItalic: {
-    fontStyle: 'italic',
-  },
-
-  richLink: {
-    color: colors.info,
-  },
-
-  readMoreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 4,
-    marginBottom: 8,
-  },
-
-  readMoreText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.success,
-  },
-
-  /* Tags */
-  hashtagRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 10,
-  },
-
-  tagChip: {
-    backgroundColor: '#EEF4FF',
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-
-  hashtag: {
-    fontSize: 12,
-    color: colors.info,
-    fontWeight: '600',
-  },
-
-  /* Images */
   singleImage: {
-    height: 220,
-    borderRadius: 15,
-    marginTop: 6,
-    marginBottom: 12,
-    backgroundColor: '#EAEAEA',
+    height: 340,
+    backgroundColor: '#F5F5F5',
   },
 
   carouselWrap: {
-    height: 220,
-    borderRadius: 15,
-    marginTop: 6,
-    marginBottom: 12,
-    overflow: 'hidden',
-    backgroundColor: '#EAEAEA',
+    height: 340,
+    backgroundColor: '#F5F5F5',
   },
 
   carouselImage: {
-    height: 220,
-    backgroundColor: '#EAEAEA',
+    height: 340,
+    backgroundColor: '#F5F5F5',
   },
 
   counterBadge: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(18, 18, 18, 0.72)',
     paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 12,
@@ -1641,7 +1999,7 @@ const styles = StyleSheet.create({
   counterText: {
     color: '#FFFFFF',
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 
   dotsRow: {
@@ -1659,20 +2017,146 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.55)',
+    backgroundColor: 'rgba(255,255,255,0.5)',
   },
 
   dotActive: {
-    width: 18,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
     backgroundColor: '#FFFFFF',
   },
 
-  /* Info blocks (job / event / news) */
-  extraInfo: {
-    backgroundColor: '#F5F8F6',
-    padding: 12,
-    borderRadius: 14,
+  instaActionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 6,
+  },
+
+  instaLeftActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+
+  iconActionBtn: {
+    paddingVertical: 2,
+  },
+
+  instaMetaPad: {
+    paddingHorizontal: 12,
+  },
+
+  likesCountText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#121212',
+    marginBottom: 4,
+  },
+
+  postTitle: {
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: '#121212',
+    marginBottom: 3,
+    lineHeight: 20,
+  },
+
+  captionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+  },
+
+  captionAuthor: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#121212',
+    lineHeight: 19,
+  },
+
+  captionBodyWrap: {
+    flex: 1,
+  },
+
+  expandableWrap: {
+    position: 'relative',
+  },
+
+  measureWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    opacity: 0,
+  },
+
+  postText: {
+    fontSize: 13.5,
+    color: '#262626',
+    lineHeight: 19,
+  },
+
+  richBold: {
+    fontWeight: '700',
+    color: '#121212',
+  },
+
+  richItalic: {
+    fontStyle: 'italic',
+  },
+
+  richLink: {
+    color: '#00376B',
+  },
+
+  readMoreButton: {
+    alignSelf: 'flex-start',
+    marginTop: 2,
+  },
+
+  readMoreText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#737373',
+  },
+
+  hashtagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     marginTop: 4,
+  },
+
+  hashtag: {
+    fontSize: 13,
+    color: '#00376B',
+    fontWeight: '400',
+  },
+
+  inlineLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+
+  detailsText: {
+    fontSize: 13,
+    color: '#121212',
+    fontWeight: '600',
+  },
+
+  extraInfo: {
+    backgroundColor: '#FAFAFA',
+    marginHorizontal: 12,
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E5E5',
     gap: 8,
   },
 
@@ -1686,15 +2170,15 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     lineHeight: 18,
-    color: colors.textSecondary,
+    color: '#262626',
     fontWeight: '500',
   },
 
   primaryButton: {
-    backgroundColor: colors.success,
+    backgroundColor: '#121212',
     paddingHorizontal: 14,
     paddingVertical: 9,
-    borderRadius: 10,
+    borderRadius: 8,
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
@@ -1708,28 +2192,30 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  /* Appeal */
   appealInfo: {
-    backgroundColor: '#F0F8F3',
-    padding: 14,
-    borderRadius: 14,
-    marginTop: 4,
+    backgroundColor: '#FAFAFA',
+    marginHorizontal: 12,
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E5E5',
   },
 
   appealTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 8,
   },
 
   statusChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 10,
   },
 
   statusActive: {
@@ -1753,8 +2239,8 @@ const styles = StyleSheet.create({
 
   deadlineText: {
     fontSize: 11,
-    color: colors.textMuted,
-    fontWeight: '600',
+    color: '#737373',
+    fontWeight: '500',
   },
 
   amountRow: {
@@ -1764,27 +2250,27 @@ const styles = StyleSheet.create({
   },
 
   amountText: {
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: '800',
-    color: '#167A43',
+    color: '#121212',
   },
 
   amountLabel: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: '#737373',
     fontWeight: '500',
   },
 
   progressTrack: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#D5E8DB',
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#E5E5E5',
     overflow: 'hidden',
   },
 
   progressFill: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: 3,
   },
 
   progressMeta: {
@@ -1796,7 +2282,7 @@ const styles = StyleSheet.create({
 
   targetText: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: '#737373',
     fontWeight: '500',
   },
 
@@ -1808,64 +2294,18 @@ const styles = StyleSheet.create({
 
   remainingText: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: '#525252',
     marginTop: 4,
   },
 
-  /* Footer */
-  postFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 12,
-    marginTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.neutral.border,
+  postTime: {
+    fontSize: 10.5,
+    color: '#737373',
+    marginTop: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.2,
   },
 
-  footerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 5,
-    paddingRight: 14,
-    gap: 6,
-  },
-
-  actionText: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-
-  detailsText: {
-    fontSize: 13,
-    color: colors.success,
-    fontWeight: '700',
-  },
-
-  shareButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 13,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#E8F5EC',
-    gap: 6,
-  },
-
-  shareText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.success,
-  },
-
-  /* Verification banner */
   verificationBanner: {
     backgroundColor: '#E8F5EC',
     borderBottomWidth: 1,
@@ -1874,7 +2314,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 14,
   },
 
   bannerContent: {
@@ -1885,8 +2325,8 @@ const styles = StyleSheet.create({
   },
 
   bannerIcon: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: 10,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
@@ -1914,8 +2354,8 @@ const styles = StyleSheet.create({
   },
 
   bannerCloseButton: {
-    width: 32,
-    height: 32,
+    width: 30,
+    height: 30,
     borderRadius: 8,
     backgroundColor: '#F5F5F5',
     justifyContent: 'center',
@@ -1933,8 +2373,29 @@ const styles = StyleSheet.create({
 
   loadingText: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: '#737373',
     marginTop: 10,
+  },
+
+  footerLoader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    gap: 8,
+  },
+
+  footerLoaderText: {
+    fontSize: 12.5,
+    color: '#737373',
+    fontWeight: '500',
+  },
+
+  endOfListText: {
+    textAlign: 'center',
+    fontSize: 12,
+    color: '#737373',
+    paddingVertical: 18,
   },
 
   emptyContainer: {
@@ -1948,23 +2409,23 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.textPrimary,
+    color: '#121212',
     marginTop: 12,
   },
 
   emptySubtitle: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: '#737373',
     textAlign: 'center',
     marginTop: 5,
     lineHeight: 19,
   },
 
   retryButton: {
-    backgroundColor: colors.success,
+    backgroundColor: '#121212',
     paddingHorizontal: 20,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 8,
     marginTop: 15,
   },
 

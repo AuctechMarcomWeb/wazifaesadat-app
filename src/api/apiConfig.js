@@ -22,6 +22,10 @@ export const clearCachedToken = () => {
 export const preloadToken = async () => {
   try {
     _cachedToken = await AsyncStorage.getItem('authToken');
+    console.log('🔐 [apiConfig] Token preloaded:', {
+      tokenExists: !!_cachedToken,
+      tokenLength: _cachedToken?.length,
+    });
   } catch (error) {
     console.log('Preload Token Error:', error);
   }
@@ -41,15 +45,38 @@ export const createAxiosInstance = (endpoint = '') => {
   instance.interceptors.request.use(
     async config => {
       try {
+        console.log('🔐 [apiConfig] Request interceptor:', {
+          endpoint,
+          url: config.url,
+          cachedTokenExists: !!_cachedToken,
+          cachedTokenLength: _cachedToken?.length,
+        });
+
         if (!_cachedToken) {
+          console.log('🔐 [apiConfig] No cached token, fetching from storage...');
           _cachedToken = await AsyncStorage.getItem('authToken');
+          console.log('🔐 [apiConfig] Token from storage:', {
+            exists: !!_cachedToken,
+            length: _cachedToken?.length,
+          });
         }
 
         if (_cachedToken) {
           config.headers.Authorization = `Bearer ${_cachedToken}`;
+          console.log('✅ [apiConfig] Auth token ATTACHED:', {
+            endpoint,
+            url: config.url,
+            tokenLength: _cachedToken?.length,
+            tokenStart: _cachedToken?.substring(0, 20) + '...',
+          });
+        } else {
+          console.log('⚠️ [apiConfig] NO TOKEN AVAILABLE - request will be unauthenticated:', {
+            endpoint,
+            url: config.url,
+          });
         }
       } catch (error) {
-        console.log('Token Fetch Error:', error);
+        console.error('❌ [apiConfig] Token Fetch Error:', error);
       }
 
       return config;

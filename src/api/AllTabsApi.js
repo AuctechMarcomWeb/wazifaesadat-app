@@ -109,9 +109,14 @@ export const likePost = async id => {
 // Method: POST
 // Endpoint: /api/posts/:id/share
 
-export const sharePost = async id => {
+export const sharePost = async (id, payload = {}) => {
   try {
-    const response = await postsApi.post(`/${id}/share`);
+    const response = await postsApi.post(`/${id}/share`, {
+      shareUrl: payload?.shareUrl || '',
+      platform: payload?.platform || 'native_share',
+      title: payload?.title || '',
+      ...payload,
+    });
 
     return {
       success: true,
@@ -179,6 +184,31 @@ export const getAllBlogs = async ({
   }
 };
 
+// GET BLOG BY ID
+// Method: GET
+// Endpoint: /api/blogs/:id
+// Authentication: Optional
+
+export const getBlogById = async id => {
+  try {
+    const response = await blogsApi.get(`/${id}`);
+
+    return {
+      success: true,
+      data: response.data.data,
+      message: response.data.message,
+    };
+  } catch (error) {
+    console.error('Get Blog By ID Error:', error);
+
+    return {
+      success: false,
+      data: null,
+      message: error.response?.data?.message || error.message,
+    };
+  }
+};
+
 // ==========================================
 // LIKE / UNLIKE BLOG
 // Method: POST
@@ -216,9 +246,14 @@ export const likeBlog = async id => {
 // Authentication: Not required in the provided route
 // ==========================================
 
-export const shareBlog = async id => {
+export const shareBlog = async (id, payload = {}) => {
   try {
-    const response = await blogsApi.post(`/${id}/share`);
+    const response = await blogsApi.post(`/${id}/share`, {
+      shareUrl: payload?.shareUrl || '',
+      platform: payload?.platform || 'native_share',
+      title: payload?.title || '',
+      ...payload,
+    });
 
     return {
       success: true,
@@ -679,9 +714,14 @@ export const likeNewsEvent = async id => {
 // Method: POST
 // Endpoint: /api/news-events/:id/share
 
-export const shareNewsEvent = async id => {
+export const shareNewsEvent = async (id, payload = {}) => {
   try {
-    const response = await newsEventsApi.post(`/${id}/share`);
+    const response = await newsEventsApi.post(`/${id}/share`, {
+      shareUrl: payload?.shareUrl || '',
+      platform: payload?.platform || 'native_share',
+      title: payload?.title || '',
+      ...payload,
+    });
 
     return {
       success: true,

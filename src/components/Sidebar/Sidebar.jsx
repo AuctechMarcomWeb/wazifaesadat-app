@@ -18,13 +18,13 @@ import {
   heightPercentageToDP as hp,
 } from 'react-native-responsive-screen';
 
-import { getVisibleMenus } from '../../utils/permissionHelper';
 
 import Colors from '../../themes/colors';
 
 import { FontFamily, FontSize } from '../../themes/typography';
 
 import AppLayout from '../AppLayout/AppLayout';
+import { MENU_CONFIG } from '../../config/menuConfig';
 
 // ─────────────────────────────────────────
 // Sidebar Component
@@ -52,11 +52,15 @@ const Sidebar = ({ navigation, role }) => {
   const userName = profile?.FullName || loginData?.Name || 'Associate';
 
   // ─────────────────────────────────────
-  // Visible Menus (from getVisibleMenus)
+  // Visible Menus (from MENU_CONFIG)
   // ─────────────────────────────────────
 
-  const menus = getVisibleMenus(permissions, currentRole);
-
+  const menus = Object.entries(MENU_CONFIG)
+    .map(([menuKey, menuConfig]) => ({
+      key: menuKey,
+      ...menuConfig,
+    }))
+    .filter(menu => menu.label);
   // ─────────────────────────────────────
   // Menu Navigation
   // ─────────────────────────────────────
@@ -69,7 +73,13 @@ const Sidebar = ({ navigation, role }) => {
     } else {
       // Use screenName if provided, otherwise use menu.key
       const screenName = menu.screenName || menu.key;
-      navigation.navigate(screenName);
+      
+      // Pass params if they exist
+      if (menu.params) {
+        navigation.navigate(screenName, menu.params);
+      } else {
+        navigation.navigate(screenName);
+      }
 
       setExpandedMenu(null);
     }
