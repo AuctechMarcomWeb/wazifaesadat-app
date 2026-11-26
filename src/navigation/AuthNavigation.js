@@ -47,8 +47,8 @@ import UserManagementScreen from '../Screens/Common/UserManagementScreen/UserMan
 import AddUserScreen from '../Screens/Common/UserManagementScreen/AddUserScreen';
 // import AddStaffScreen from '../Screens/Common/UserManagementScreen/UserManagementScreen';
 import MembershipListScreen from '../Screens/Common/MembersList/MembersListScreen/MemberListScreen';
-import OfficeBearerMasterScreen from '../Screens/Common/OrganizationStructure/OfficeBearerMasterScreen/OfficeBearerMasterScreen';
-import AddOfficeBearerScreen from '../Screens/Common/OrganizationStructure/OfficeBearerMasterScreen/AddOfficeBearerScreen';
+import OfficeBearerMasterScreen from '../Screens/OfficeBearerScreen/OfficeBearerScreen';
+import AddOfficeBearerScreen from '../Screens/OfficeBearerScreen/AddOfficeBearerScreen';
 import ExecutiveMembersScreen from '../Screens/Common/OrganizationStructure/ExecutiveMembersScreen/ExecutiveMembersScreen';
 import AddExecutiveMembersScreen from '../Screens/Common/OrganizationStructure/ExecutiveMembersScreen/AddExecutiveMembersScreen';
 import LocalSecretariesScreen from '../Screens/Common/OrganizationStructure/LocalSecretariesScreen/LocalSecretariesScreen';
@@ -91,6 +91,8 @@ import AppealDetails from '../Screens/Appeal/AppealDetails';
 import AppealScreen from '../Screens/Appeal/AppealScreen';
 
 import DonationsScreen from '../Screens/Donation/DonationScreen';
+import DonationDetailsScreen from '../Screens/Donation/DonationDetailsScreen';
+import DonationFormScreen from '../Screens/Donation/DonationFormScreen';
 
 // Message details screen
 import MessageDetailsScreen from '../Screens/Common/Messagingscreen/MessageDetailsScreen';
@@ -432,6 +434,8 @@ const MainDrawer = () => {
           drawerItemStyle: { display: 'none' },
         }}
       />
+
+      
 
       <Drawer.Screen
         name="MembershipScreen"
@@ -974,10 +978,16 @@ const AuthNavigation = () => {
       <Stack.Screen name="EventDetails" component={EventDetails} />
 
       <Stack.Screen name="DonationsScreen" component={DonationsScreen} />
+      <Stack.Screen name="DonationDetailsScreen" component={DonationDetailsScreen} />
+
+
 
       {/* Jobs & Career */}
       <Stack.Screen name="JobsCareerScreen" component={JobsCareerScreen} />
       <Stack.Screen name="JobsCareerDetails" component={JobsCareerDetails} />
+
+      <Stack.Screen name="DonationFormScreen" component={DonationFormScreen} />
+
 
       {/* Appeals */}
       <Stack.Screen name="AppealScreen" component={AppealScreen} />

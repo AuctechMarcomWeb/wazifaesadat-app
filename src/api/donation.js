@@ -1,4 +1,4 @@
-import { createAxiosInstance } from './apiConfig';
+import { createAxiosInstance, BASE_URL } from './apiConfig';
 
 const donation = createAxiosInstance('');
 
@@ -9,12 +9,20 @@ export const getDonations = async ({
   phone = '',
   email = '',
   fundType = '',
-  paymentStatus = '',
+  paymentStatus = 'paid',
   paymentGateway = '',
   paymentMode = '',
   sortBy = 'latest',
 } = {}) => {
   try {
+    console.log('📞 Fetching donations with params:', {
+      page,
+      limit,
+      phone,
+      email,
+      paymentStatus,
+    });
+
     const response = await donation.get('/payment', {
       params: {
         page,
@@ -27,12 +35,76 @@ export const getDonations = async ({
         paymentGateway,
         paymentMode,
         sortBy,
+        isPagination: 'true',
       },
     });
 
+    console.log('✅ Get Donations Success:', response.data);
     return response.data;
   } catch (error) {
-    console.error('Get Donations Error:', error);
-    throw error;
+    console.error(
+      '❌ Get Donations Error:',
+      error?.response?.data || error?.message,
+    );
+    return {
+      success: false,
+      message: error?.response?.data?.message || 'Failed to fetch donations',
+      data: null,
+    };
+  }
+};
+
+export const getFundTypes = async () => {
+  try {
+    const response = await donation.get('/fund-type', {
+      params: {
+        isPagination: false,
+        isActive: true,
+      },
+    });
+
+    console.log('✅ Get Fund Types Success:', response.data);
+
+    return response.data;
+  } catch (error) {
+    console.error(
+      '❌ Get Fund Types Error:',
+      error?.response?.data || error?.message,
+    );
+
+    return {
+      success: false,
+      message: error?.response?.data?.message || 'Failed to fetch fund types',
+      data: null,
+    };
+  }
+};
+
+
+export const createPayuDonation = async (payload) => {
+  try {
+    console.log('📞 Creating PayU Donation:', payload);
+
+    const response = await donation.post(
+      '/payment/payu/create',
+      payload
+    );
+
+    console.log('✅ PayU Donation Created:', response.data);
+
+    return response.data;
+  } catch (error) {
+    console.error(
+      '❌ PayU Donation Error:',
+      error?.response?.data || error?.message
+    );
+
+    return {
+      success: false,
+      message:
+        error?.response?.data?.message ||
+        'Failed to create PayU donation',
+      data: null,
+    };
   }
 };

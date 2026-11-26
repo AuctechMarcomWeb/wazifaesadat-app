@@ -74,14 +74,76 @@ export const MENU_CONFIG = {
   },
 };
 
-/**
- * Role to menu mapping (based on typical org hierarchy)
- * Used as fallback when no backend permissions available
- */
-/**
- * Role to menu mapping (based on typical org hierarchy)
- * Used as fallback when no backend permissions available
- */
+
+//  OfficeBearers: {
+//     label: 'Office Bearers',
+//     icon: 'account-tie',
+//     modules: ['office_bearer'],
+//     screenName: 'OfficeBearersScreen',
+//   },
+
+  // Members: {
+  //   label: 'Members',
+  //   icon: 'account-group',
+  //   children: [
+  //     {
+  //       key: 'UmoomiMember',
+  //       label: 'Umoomi Member',
+  //       modules: ['umoomi_member'],
+  //       screenName: 'UmoomiMemberScreen',
+  //     },
+  //     {
+  //       key: 'DawamiMember',
+  //       label: 'Dawami Member',
+  //       modules: ['dawami_member'],
+  //       screenName: 'DawamiMemberScreen',
+  //     },
+  //     {
+  //       key: 'LifeMember',
+  //       label: 'Life Member',
+  //       modules: ['life_member'],
+  //       screenName: 'LifeMemberScreen',
+  //     },
+  //   ],
+  // },
+
+  // Wazifadar: {
+  //   label: 'Wazifadar',
+  //   icon: 'account-school',
+  //   modules: ['wazifadar'],
+  //   screenName: 'WazifadarScreen',
+  // },
+
+  // Executive: {
+  //   label: 'Executive',
+  //   icon: 'account-star',
+  //   children: [
+  //     {
+  //       key: 'MansabiMember',
+  //       label: 'Mansabi Member',
+  //       modules: ['mansabi_member'],
+  //       screenName: 'MansabiMemberScreen',
+  //     },
+  //     {
+  //       key: 'ElectedMember',
+  //       label: 'Elected Member',
+  //       modules: ['elected_member'],
+  //       screenName: 'ElectedMemberScreen',
+  //     },
+  //     {
+  //       key: 'MohsinAnjuman',
+  //       label: 'Mohsin-e-Anjuman',
+  //       modules: ['mohsin_e_anjuman'],
+  //       screenName: 'MohsinAnjumanScreen',
+  //     },
+  //     {
+  //       key: 'SarparstAnjuman',
+  //       label: 'Sarparst-e-Anjuman',
+  //       modules: ['sarparst_e_anjuman'],
+  //       screenName: 'SarparstAnjumanScreen',
+  //     },
+  //   ],
+  // },
 export const ROLE_MENUS = {
   SuperAdmin: [
     'Dashboard',

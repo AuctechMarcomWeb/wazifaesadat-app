@@ -2,8 +2,8 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Main API URL
-export const BASE_URL = 'http://192.168.1.9:9004/api';
+// Main API URL - Use env variable with fallback
+export const BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://192.168.1.9:9004/api';
 
 // Jobs API URL
 export const JOBS_BASE_URL = 'https://jobsapi.wazifaesadat.org/api';

@@ -965,83 +965,21 @@ const FeedCard = memo(
             onPress={() => onOpen(item)}
             style={styles.appealInfo}
           >
-            <View style={styles.appealTopRow}>
-              <View
-                style={[
-                  styles.statusChip,
-                  appealClosed ? styles.statusClosed : styles.statusActive,
-                ]}
+            {item.isDummy ? (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={styles.primaryButton}
+                onPress={() => onOpen(item)}
               >
-                <View
-                  style={[
-                    styles.statusDot,
-                    { backgroundColor: appealClosed ? '#B42318' : '#167A43' },
-                  ]}
-                />
-                <Text
-                  style={[
-                    styles.statusText,
-                    { color: appealClosed ? '#B42318' : '#167A43' },
-                  ]}
-                >
-                  {appealClosed ? 'Closed' : 'Active'}
-                </Text>
+                <Text style={styles.primaryButtonText}>Donate Now</Text>
+                <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.primaryButton}>
+                <Text style={styles.primaryButtonText}>View Appeal</Text>
+                <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
               </View>
-
-              {!!item.deadline && (
-                <Text style={styles.deadlineText}>
-                  {appealClosed ? 'Ended' : 'Ends'} {formatDate(item.deadline)}
-                </Text>
-              )}
-            </View>
-
-            <View style={styles.amountRow}>
-              <Text style={styles.amountText}>{formatMoney(raised)}</Text>
-              <Text style={styles.amountLabel}> raised</Text>
-            </View>
-
-            {target > 0 && (
-              <>
-                <View style={styles.progressTrack}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      {
-                        width: `${progress}%`,
-                        backgroundColor: goalReached ? '#167A43' : '#2E9E5B',
-                      },
-                    ]}
-                  />
-                </View>
-
-                <View style={styles.progressMeta}>
-                  <Text style={styles.targetText}>
-                    Goal {formatMoney(target)}
-                  </Text>
-
-                  <Text style={styles.progressPercent}>
-                    {goalReached
-                      ? 'Goal reached 🎉'
-                      : `${Math.round(progress)}%`}
-                  </Text>
-                </View>
-              </>
             )}
-
-            {Number(item.remainingAmount) > 0 && (
-              <Text style={styles.remainingText}>
-                {formatMoney(item.remainingAmount)} still needed
-              </Text>
-            )}
-
-            {Number(item.donorCount) > 0 && (
-              <Text style={styles.remainingText}>{item.donorCount} donors</Text>
-            )}
-
-            <View style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>View Appeal</Text>
-              <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
-            </View>
           </TouchableOpacity>
         )}
 
@@ -1473,10 +1411,15 @@ const CommunityPostCard = ({ navigation }) => {
   }, [activeTab, allItems, posts, blogs, jobs, appeals, newsEvents]);
 
   const handleShare = useCallback(async item => {
-    const itemId = item?.id || getId(item);
-    if (!itemId) return;
+    const itemId = item?.id || getId(item) || item?._id;
+    if (!itemId) {
+      console.log('❌ Share: No item ID found');
+      return;
+    }
 
     try {
+      console.log('📤 Sharing item:', { type: item.type, id: itemId });
+
       const shareUrl = getShareUrl({ ...item, id: itemId });
       const sharePayload = buildSharePayload(item, itemId, shareUrl);
       const summary = [item?.title, stripHtml(item?.text)]
@@ -1484,31 +1427,50 @@ const CommunityPostCard = ({ navigation }) => {
         .join('\n\n');
       const message = [summary, shareUrl].filter(Boolean).join('\n\n');
 
+      console.log('📱 Opening native share with message:', message.substring(0, 50) + '...');
+
       const result = await Share.share({
         message: message || shareUrl,
         url: shareUrl,
         title: item?.title || 'Share Community Content',
       });
 
-      if (result?.action !== Share.sharedAction) return;
+      console.log('✅ Share result:', result?.action);
+
+      if (result?.action !== Share.sharedAction) {
+        console.log('⚠️ User cancelled share or no share action');
+        return;
+      }
+
+      // Skip API call for dummy items
+      if (item.isDummy) {
+        console.log('✅ Dummy item shared successfully (no API call needed)');
+        return;
+      }
 
       if (item.type === 'post') {
+        console.log('📤 Calling sharePost API...');
         const response = await sharePost(itemId, sharePayload);
 
         if (!response?.success) {
           console.log('Post Share API:', response?.message);
+        } else {
+          console.log('✅ Post share API success');
         }
       }
 
       if (item.type === 'blog') {
+        console.log('📤 Calling shareBlog API...');
         const response = await shareBlog(itemId, sharePayload);
 
         if (!response?.success) {
           console.log('Blog Share API:', response?.message);
+        } else {
+          console.log('✅ Blog share API success');
         }
       }
     } catch (err) {
-      console.log('Share Error:', err?.message);
+      console.log('❌ Share Error:', err?.message);
     }
   }, []);
 
@@ -1631,6 +1593,13 @@ const CommunityPostCard = ({ navigation }) => {
 
   const handleItemPress = useCallback(
     item => {
+      // Check if it's a dummy appeal and navigate to DonationFormScreen
+      if (item.isDummy && item.type === 'appeal') {
+        console.log('📍 Opening DonationFormScreen for dummy appeal');
+        navigation?.navigate('DonationFormScreen', { appeal: item });
+        return;
+      }
+
       if (item.type === 'post') {
         navigation?.navigate('PostDetails', { postId: item.id, post: item });
       } else if (item.type === 'blog') {
@@ -1843,6 +1812,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white || '#FFFFFF',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#DBDBDB',
+    marginTop:-22,
   },
 
   tabScrollContent: {
@@ -2314,7 +2284,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 14,
-    paddingVertical: 14,
+    paddingVertical: 24,
+    marginTop:-20,
+    paddingTop:9
   },
 
   bannerContent: {

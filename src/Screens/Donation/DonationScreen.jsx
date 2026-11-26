@@ -10,15 +10,15 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { widthPercentageToDP as wp } from 'react-native-responsive-screen';
+import { useSelector } from 'react-redux';
 
 import colors from '../../themes/colors';
 import { FontFamily, FontSize } from '../../themes/typography';
 import AppLayout from '../../components/AppLayout/AppLayout';
 import BackHeader from '../../components/BackHeader/BackHeader';
-import { Body, SearchField, Dropdown } from '../../components/Formparts';
+import { Body } from '../../components/Formparts';
 import { getDonations } from '../../api/donation';
 
-const STATUS_FILTERS = ['All Status', 'Success', 'Pending', 'Failed'];
 const PAGE_LIMIT = 15;
 
 const formatCurrency = amount => {
@@ -48,14 +48,14 @@ const getStatusStyle = status => {
     return {
       bg: '#D1FAE5',
       text: '#065F46',
-      label: status || 'Success',
+      label: 'Paid',
     };
   }
   if (normalized === 'failed' || normalized === 'cancelled') {
     return {
       bg: '#FEE2E2',
       text: '#991B1B',
-      label: status || 'Failed',
+      label: 'Failed',
     };
   }
   return {
@@ -69,35 +69,47 @@ const getDonationKey = (item, idx) =>
   String(item?._id || item?.id || item?.txnId || item?.transactionId || idx);
 
 const extractDonationsPayload = response => {
-  const root = response?.data || response || {};
-  const list = Array.isArray(root?.donations)
-    ? root.donations
-    : Array.isArray(root?.payments)
-    ? root.payments
-    : Array.isArray(root?.items)
-    ? root.items
-    : Array.isArray(response?.data)
-    ? response.data
+  const level1 = response?.data || response || {};
+  const level2 = Array.isArray(level1?.data) ? level1 : level1?.data || {};
+
+  const list = Array.isArray(level1?.data)
+    ? level1.data
+    : Array.isArray(level2?.data)
+    ? level2.data
+    : Array.isArray(level2?.donations)
+    ? level2.donations
+    : Array.isArray(level2?.payments)
+    ? level2.payments
+    : Array.isArray(level2?.items)
+    ? level2.items
     : [];
 
+  const meta = Array.isArray(level1?.data) ? level1 : level2;
+
   const hasExplicitTotal =
-    typeof root?.total === 'number' ||
+    typeof meta?.total === 'number' ||
     typeof response?.pagination?.total === 'number';
 
   const totalCount =
-    typeof root?.total === 'number'
-      ? root.total
+    typeof meta?.total === 'number'
+      ? meta.total
       : typeof response?.pagination?.total === 'number'
       ? response.pagination.total
       : list.length;
 
   const totalPagesCount =
-    Number(root?.totalPages ?? response?.pagination?.totalPages) || 1;
+    Number(meta?.totalPages ?? response?.pagination?.totalPages) || 1;
 
   return { list, totalCount, totalPagesCount, hasExplicitTotal };
 };
 
 const DonationsScreen = ({ navigation }) => {
+  const reduxUser = useSelector(
+    state => state?.user?.user || state?.auth?.user,
+  );
+  const userPhone = reduxUser?.phone || reduxUser?.mobileNumber || '';
+  const userEmail = reduxUser?.email || '';
+
   const [donations, setDonations] = useState([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -108,23 +120,14 @@ const DonationsScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const [search, setSearch] = useState('');
-  const [appliedSearch, setAppliedSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All Status');
-
-  const debounceRef = useRef(null);
   const isFetchingMoreRef = useRef(false);
   const pageRef = useRef(1);
   const totalPagesRef = useRef(1);
   const requestSeqRef = useRef(0);
+  const hasFetchedOnceRef = useRef(false);
 
   const fetchDonationsPage = useCallback(
-    async ({
-      targetPage = 1,
-      mode = 'replace', // 'replace' | 'append' | 'refresh'
-      searchQuery = appliedSearch,
-      status = statusFilter,
-    }) => {
+    async ({ targetPage = 1, mode = 'replace' }) => {
       if (mode === 'append') {
         if (isFetchingMoreRef.current) return;
         isFetchingMoreRef.current = true;
@@ -138,16 +141,16 @@ const DonationsScreen = ({ navigation }) => {
       const seq = ++requestSeqRef.current;
 
       try {
-        const apiStatus = status === 'All Status' ? '' : status.toLowerCase();
-
-        const response = await getDonations({
+        const queryParams = {
           page: targetPage,
           limit: PAGE_LIMIT,
-          search: searchQuery.trim(),
-          paymentStatus: apiStatus,
           sortBy: 'latest',
-        });
+        };
 
+        if (userPhone) queryParams.phone = userPhone;
+        if (userEmail) queryParams.email = userEmail;
+
+        const response = await getDonations(queryParams);
         if (seq !== requestSeqRef.current) return;
 
         const { list, totalCount, totalPagesCount, hasExplicitTotal } =
@@ -183,7 +186,6 @@ const DonationsScreen = ({ navigation }) => {
           err?.response?.data?.message ||
           err?.message ||
           'Failed to load donations';
-        console.error('Fetch Donations Error:', message);
         setErrorMsg(message);
         if (mode === 'replace' && targetPage === 1) {
           setDonations([]);
@@ -200,50 +202,19 @@ const DonationsScreen = ({ navigation }) => {
         }
       }
     },
-    [appliedSearch, statusFilter],
+    [userPhone, userEmail],
   );
 
   useEffect(() => {
-    pageRef.current = 1;
-    totalPagesRef.current = 1;
-    setPage(1);
-    setTotalPages(1);
-    fetchDonationsPage({
-      targetPage: 1,
-      mode: 'replace',
-      searchQuery: appliedSearch,
-      status: statusFilter,
-    });
-  }, [appliedSearch, statusFilter, fetchDonationsPage]);
-
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-    };
-  }, []);
-
-  const handleSearchChange = text => {
-    setSearch(text);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setAppliedSearch(text);
-    }, 400);
-  };
-
-  const handleStatusSelect = val => {
-    setStatusFilter(val);
-  };
+    if (!hasFetchedOnceRef.current) {
+      hasFetchedOnceRef.current = true;
+      fetchDonationsPage({ targetPage: 1, mode: 'replace' });
+    }
+  }, [fetchDonationsPage]);
 
   const handleRefresh = useCallback(() => {
-    fetchDonationsPage({
-      targetPage: 1,
-      mode: 'refresh',
-      searchQuery: appliedSearch,
-      status: statusFilter,
-    });
-  }, [fetchDonationsPage, appliedSearch, statusFilter]);
+    fetchDonationsPage({ targetPage: 1, mode: 'refresh' });
+  }, [fetchDonationsPage]);
 
   const handleLoadMore = useCallback(() => {
     if (loading || loadingMore || refreshing || isFetchingMoreRef.current) {
@@ -256,41 +227,48 @@ const DonationsScreen = ({ navigation }) => {
     fetchDonationsPage({
       targetPage: pageRef.current + 1,
       mode: 'append',
-      searchQuery: appliedSearch,
-      status: statusFilter,
     });
-  }, [
-    loading,
-    loadingMore,
-    refreshing,
-    donations.length,
-    fetchDonationsPage,
-    appliedSearch,
-    statusFilter,
-  ]);
+  }, [loading, loadingMore, refreshing, donations.length, fetchDonationsPage]);
+
+  const handleCardPress = donation => {
+    navigation.navigate('DonationDetailsScreen', { donation });
+  };
+
+  const handleDonatePress = () => {
+    navigation.navigate('DonationFormScreen');
+  };
 
   const renderDonationCard = ({ item, index }) => {
     const statusInfo = getStatusStyle(item.paymentStatus || item.status);
     const donorName =
-      item.donorName ||
-      item.name ||
-      item.user?.name ||
-      item.createdBy?.name ||
-      'Anonymous Donor';
+      item.name || item.payu?.firstname || item.user?.name || 'Anonymous Donor';
 
-    const donorPhone = item.phone || item.donorPhone || item.user?.phone || '';
-    const donorEmail = item.email || item.donorEmail || item.user?.email || '';
+    const donorPhone = item.phone || item.user?.phone || '';
+    const donorEmail = item.email || item.user?.email || '';
     const fundType =
-      item.fundType || item.purpose || item.category || 'General';
+      item.fundType?.title || item.fundType || item.contributeType || 'General';
     const paymentMode =
-      item.paymentMode || item.paymentGateway || item.method || 'Online';
+      item.payu?.mode ||
+      item.gatewayResponse?.mode ||
+      item.paymentMode ||
+      item.paymentGateway ||
+      'Online';
     const refId =
-      item.txnId || item.transactionId || item.receiptNo || item._id || '';
+      item.receiptNo ||
+      item.payu?.mihpayid ||
+      item.transactionId ||
+      item.orderId ||
+      item._id ||
+      '';
 
     return (
-      <View style={styles.card}>
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => handleCardPress(item)}
+        style={styles.card}
+      >
         <View style={styles.cardTopRow}>
-          <Text style={styles.srNo}>#{index + 1}</Text>
+          <Text style={styles.srNo}>{index + 1}</Text>
           <Text style={styles.refText} numberOfLines={1}>
             {refId ? `Ref: ${refId}` : 'Donation'}
           </Text>
@@ -332,7 +310,7 @@ const DonationsScreen = ({ navigation }) => {
           <View style={styles.infoColRight}>
             <Text style={styles.labelKey}>Date</Text>
             <Text style={styles.valText}>
-              {formatDate(item.createdAt || item.paidAt || item.date)}
+              {formatDate(item.paidAt || item.createdAt || item.date)}
             </Text>
           </View>
         </View>
@@ -351,7 +329,7 @@ const DonationsScreen = ({ navigation }) => {
             </Text>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -368,7 +346,7 @@ const DonationsScreen = ({ navigation }) => {
     if (donations.length > 0 && page >= totalPages) {
       return (
         <Text style={styles.endText}>
-          Showing all {donations.length} of {total} donations
+          Loaded: {donations.length} / Total Donations: {total}
         </Text>
       );
     }
@@ -424,25 +402,6 @@ const DonationsScreen = ({ navigation }) => {
                       colors={[colors.primary]}
                     />
                   }
-                  ListHeaderComponent={
-                    <View style={styles.headerBlock}>
-                      <View style={styles.searchFilterRow}>
-                        <View style={styles.searchFlex}>
-                          <SearchField
-                            placeholder="Search name, phone, email, txn..."
-                            value={search}
-                            onChangeText={handleSearchChange}
-                          />
-                        </View>
-                        <Dropdown
-                          value={statusFilter}
-                          options={STATUS_FILTERS}
-                          onSelect={handleStatusSelect}
-                          style={styles.statusDropdown}
-                        />
-                      </View>
-                    </View>
-                  }
                   ListEmptyComponent={
                     <View style={styles.emptyContainer}>
                       <Icon
@@ -452,21 +411,24 @@ const DonationsScreen = ({ navigation }) => {
                       />
                       <Text style={styles.emptyTitle}>No donations found</Text>
                       <Text style={styles.emptySubtitle}>
-                        Try changing your search or status filter.
+                        Tap Donate below to make your first contribution.
                       </Text>
                     </View>
                   }
                 />
               )}
 
-              {!loading && donations.length > 0 && (
+              {/* Full-Width Bottom Donate Button */}
+              {!loading && (
                 <View style={styles.bottomBar}>
-                  <Text style={styles.totalText}>
-                    Loaded:{' '}
-                    <Text style={styles.totalBold}>{donations.length}</Text> /
-                    Total Donations:{' '}
-                    <Text style={styles.totalBold}>{total}</Text>
-                  </Text>
+                  <TouchableOpacity
+                    style={styles.donateFullBtn}
+                    activeOpacity={0.85}
+                    onPress={handleDonatePress}
+                  >
+                    <Icon name="heart-plus" size={19} color={colors.white} />
+                    <Text style={styles.donateFullBtnText}>Donate</Text>
+                  </TouchableOpacity>
                 </View>
               )}
             </View>
@@ -496,25 +458,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 24,
   },
-  headerBlock: {
-    marginTop: 18,
-    marginBottom: 12,
-  },
-  searchFilterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  searchFlex: {
-    flex: 1,
-  },
-  statusDropdown: {
-    width: 118,
-  },
   listContent: {
     paddingHorizontal: wp('4%'),
     paddingBottom: 20,
-    paddingTop: 4,
+    paddingTop: 37,
   },
   card: {
     backgroundColor: '#F3F4F6',
@@ -680,20 +627,26 @@ const styles = StyleSheet.create({
   },
   bottomBar: {
     paddingHorizontal: wp('4%'),
-    paddingVertical: 10,
+    paddingVertical: 12,
     backgroundColor: colors.white,
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
     flexShrink: 0,
   },
-  totalText: {
-    fontSize: FontSize.sm,
-    fontFamily: FontFamily.regular,
-    color: '#6B7280',
+  donateFullBtn: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.primary,
+    paddingVertical: 13,
+    borderRadius: 10,
   },
-  totalBold: {
+  donateFullBtnText: {
+    color: colors.white,
+    fontSize: FontSize.md,
     fontFamily: FontFamily.bold,
-    color: colors.TitleColor,
   },
 });
 

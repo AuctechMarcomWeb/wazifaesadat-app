@@ -12,11 +12,11 @@ import {
 } from 'react-native';
 
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import colors from '../../../../themes/colors';
-import { FontFamily, FontSize } from '../../../../themes/typography';
+import colors from '../../themes/colors';
+import { FontFamily, FontSize } from '../../themes/typography';
 
-import AppLayout from '../../../../components/AppLayout/AppLayout';
-import BackHeader from '../../../../components/BackHeader/BackHeader';
+import AppLayout from '../../components/AppLayout/AppLayout';
+import BackHeader from '../../components/BackHeader/BackHeader';
 import {
   Body,
   GreenButton,
@@ -24,10 +24,10 @@ import {
   Label,
   SearchField,
   Dropdown,
-} from '../../../../components/Formparts';
+} from '../../components/Formparts';
 import { widthPercentageToDP as wp } from 'react-native-responsive-screen';
 
-import { useOfficeBearers } from '../../../../hooks/useOrganization';
+import { useOfficeBearers } from '../../hooks/useOrganization';
 
 const DESIGNATIONS = [
   'All Designations',
