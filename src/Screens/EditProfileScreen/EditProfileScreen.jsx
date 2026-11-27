@@ -17,25 +17,25 @@ import { useSelector, useDispatch } from 'react-redux';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import * as ImagePicker from 'react-native-image-picker';
 
-import AppLayout from '../../../components/AppLayout/AppLayout';
-import BackHeader from '../../../components/BackHeader/BackHeader';
-import BottomNav from '../../../components/BottomNav/BottomNav';
+import AppLayout from '../../components/AppLayout/AppLayout';
+import BackHeader from '../../components/BackHeader/BackHeader';
+import BottomNav from '../../components/BottomNav/BottomNav';
 
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
 } from 'react-native-responsive-screen';
 
-import Colors from '../../../themes/colors';
-import { FontFamily, FontSize } from '../../../themes/typography';
+import Colors from '../../themes/colors';
+import { FontFamily, FontSize } from '../../themes/typography';
 
 import {
   updateUserById,
   updatePassword,
   getProfile,
   uploadImage,
-} from '../../../api/auth';
-import { setUser } from '../../../redux/slice/userSlice';
+} from '../../api/auth';
+import { setUser } from '../../redux/slice/userSlice';
 
 const GENDER_OPTIONS = ['Male', 'Female', 'Other'];
 
@@ -123,9 +123,10 @@ const EditProfileScreen = ({ navigation }) => {
   const [profilePicUrl, setProfilePicUrl] = useState(null);
   const [imageSourceModal, setImageSourceModal] = useState(false);
 
-  const [changePasswordModal, setChangePasswordModal] = useState(false);
+  const [passwordModal, setPasswordModal] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [showPasswords, setShowPasswords] = useState(false);
+  const [hasPassword, setHasPassword] = useState(true); // true = reset/change, false = create
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
@@ -169,6 +170,11 @@ const EditProfileScreen = ({ navigation }) => {
 
           if (userData.profilePic) {
             setProfilePicUrl(userData.profilePic);
+          }
+
+          // ✅ Set hasPassword from backend
+          if (userData.hasPassword !== undefined) {
+            setHasPassword(userData.hasPassword);
           }
 
           dispatch(setUser(userData));
@@ -692,14 +698,16 @@ const EditProfileScreen = ({ navigation }) => {
           <TouchableOpacity
             activeOpacity={0.85}
             style={styles.changePasswordButton}
-            onPress={() => setChangePasswordModal(true)}
+            onPress={() => setPasswordModal(true)}
           >
             <MaterialCommunityIcons
               name="lock-reset"
               size={20}
               color={Colors.primary}
             />
-            <Text style={styles.changePasswordButtonText}>Change Password</Text>
+            <Text style={styles.changePasswordButtonText}>
+              {hasPassword ? 'Change Password' : 'Create Password'}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -783,17 +791,17 @@ const EditProfileScreen = ({ navigation }) => {
           </TouchableOpacity>
         </Modal>
 
-        {/* Change Password Modal */}
+        {/* Change/Create Password Modal */}
         <Modal
-          visible={changePasswordModal}
+          visible={passwordModal}
           transparent
           animationType="slide"
-          onRequestClose={() => setChangePasswordModal(false)}
+          onRequestClose={() => setPasswordModal(false)}
         >
           <TouchableOpacity
             style={styles.modalOverlay}
             activeOpacity={1}
-            onPress={() => setChangePasswordModal(false)}
+            onPress={() => setPasswordModal(false)}
           >
             <View
               style={styles.passwordModalContent}
@@ -802,7 +810,9 @@ const EditProfileScreen = ({ navigation }) => {
               <View style={styles.sheetHandle} />
 
               <View style={styles.passwordModalHeader}>
-                <Text style={styles.passwordModalTitle}>Change Password</Text>
+                <Text style={styles.passwordModalTitle}>
+                  {hasPassword ? 'Change Password' : 'Create Password'}
+                </Text>
                 <View style={styles.headerRightActions}>
                   <TouchableOpacity
                     onPress={() => setShowPasswords(prev => !prev)}
@@ -815,7 +825,7 @@ const EditProfileScreen = ({ navigation }) => {
                     />
                   </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={() => setChangePasswordModal(false)}
+                    onPress={() => setPasswordModal(false)}
                   >
                     <MaterialCommunityIcons
                       name="close"
@@ -827,33 +837,38 @@ const EditProfileScreen = ({ navigation }) => {
               </View>
 
               <View style={styles.passwordFormCard}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Current Password</Text>
-                  <View style={styles.inputWrapper}>
-                    <MaterialCommunityIcons
-                      name="lock-outline"
-                      size={20}
-                      color={Colors.primary}
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={styles.input}
-                      value={passwordForm.currentPassword}
-                      onChangeText={text =>
-                        setPasswordForm(prev => ({
-                          ...prev,
-                          currentPassword: text,
-                        }))
-                      }
-                      placeholder="Enter current password"
-                      placeholderTextColor={Colors.placeHolderColor}
-                      secureTextEntry={!showPasswords}
-                    />
+                {/* Show current password field only if password exists */}
+                {hasPassword && (
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Current Password</Text>
+                    <View style={styles.inputWrapper}>
+                      <MaterialCommunityIcons
+                        name="lock-outline"
+                        size={20}
+                        color={Colors.primary}
+                        style={styles.inputIcon}
+                      />
+                      <TextInput
+                        style={styles.input}
+                        value={passwordForm.currentPassword}
+                        onChangeText={text =>
+                          setPasswordForm(prev => ({
+                            ...prev,
+                            currentPassword: text,
+                          }))
+                        }
+                        placeholder="Enter current password"
+                        placeholderTextColor={Colors.placeHolderColor}
+                        secureTextEntry={!showPasswords}
+                      />
+                    </View>
                   </View>
-                </View>
+                )}
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>New Password</Text>
+                  <Text style={styles.label}>
+                    {hasPassword ? 'New Password' : 'Password'}
+                  </Text>
                   <View style={styles.inputWrapper}>
                     <MaterialCommunityIcons
                       name="lock-plus-outline"
@@ -878,7 +893,9 @@ const EditProfileScreen = ({ navigation }) => {
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Confirm Password</Text>
+                  <Text style={styles.label}>
+                    Confirm {hasPassword ? 'Password' : 'Password'}
+                  </Text>
                   <View style={styles.inputWrapper}>
                     <MaterialCommunityIcons
                       name="lock-check-outline"
@@ -895,7 +912,7 @@ const EditProfileScreen = ({ navigation }) => {
                           confirmPassword: text,
                         }))
                       }
-                      placeholder="Re-enter new password"
+                      placeholder="Re-enter password"
                       placeholderTextColor={Colors.placeHolderColor}
                       secureTextEntry={!showPasswords}
                     />
@@ -913,14 +930,20 @@ const EditProfileScreen = ({ navigation }) => {
                     disabled={passwordLoading}
                   >
                     <Text style={styles.passwordUpdateButtonText}>
-                      {passwordLoading ? 'Updating...' : 'Update Password'}
+                      {passwordLoading
+                        ? hasPassword
+                          ? 'Updating...'
+                          : 'Creating...'
+                        : hasPassword
+                        ? 'Update Password'
+                        : 'Create Password'}
                     </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
                     activeOpacity={0.7}
                     style={styles.passwordCancelButton}
-                    onPress={() => setChangePasswordModal(false)}
+                    onPress={() => setPasswordModal(false)}
                   >
                     <Text style={styles.passwordCancelButtonText}>Cancel</Text>
                   </TouchableOpacity>

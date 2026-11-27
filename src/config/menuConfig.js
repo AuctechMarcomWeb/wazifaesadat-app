@@ -7,12 +7,11 @@ export const MENU_CONFIG = {
     screenName: 'CommunityPost',
   },
 
-  // Community Feed - 7 Separate Items
+  // Community Feed Items
   Post: {
     label: 'Post',
     icon: 'file-document',
     modules: ['community_post'],
-    // screenName: 'CommunityPost',
     params: { contentType: 'Post' },
   },
 
@@ -28,7 +27,6 @@ export const MENU_CONFIG = {
     label: 'News',
     icon: 'newspaper',
     modules: ['community_news'],
-    // screenName: 'CommunityPost',
     params: { contentType: 'News' },
   },
 
@@ -36,13 +34,8 @@ export const MENU_CONFIG = {
     label: 'Events',
     icon: 'calendar-event',
     modules: ['community_event'],
-    // screenName: 'CommunityPost',
     params: { contentType: 'Events' },
   },
-
- 
-
-
 
   Appeal: {
     label: 'Appeal',
@@ -52,198 +45,130 @@ export const MENU_CONFIG = {
     params: { contentType: 'Appeal' },
   },
 
-    Donation: {
+  Donation: {
     label: 'Donation',
     icon: 'hand-heart',
     modules: ['community_donation'],
     screenName: 'DonationsScreen',
     params: { contentType: 'Donation' },
   },
+
   Scholarship: {
     label: 'Scholarship',
     icon: 'book-education',
     modules: ['scholarship'],
     screenName: 'ScholarshipScreen',
   },
-   JobsCareer: {
+
+  JobsCareer: {
     label: 'Jobs & Career',
     icon: 'briefcase-search',
     modules: ['community_job', 'community_career'],
     screenName: 'JobsCareerScreen',
     params: { contentType: 'JobsCareer' },
   },
+
+  OfficeBearers: {
+    label: 'Office Bearers',
+    icon: 'account-tie',
+    modules: ['office_bearer'],
+    screenName: 'OfficeBearerScreen',
+  },
+
+  Members: {
+    label: 'Members',
+    icon: 'account-group',
+    children: [
+      {
+        key: 'UmoomiMember',
+        label: 'Umoomi Member',
+        modules: ['umoomi_member'],
+        screenName: 'MembershipListScreen',
+        params: {
+          memberType: 'Ordinary Member',
+          screenTitle: 'Umoomi Member (Ordinary)',
+        },
+      },
+      {
+        key: 'DawamiMember',
+        label: 'Dawami Member',
+        modules: ['dawami_member'],
+        screenName: 'MembershipListScreen',
+        params: {
+          memberType: 'Dawami Member',
+          screenTitle: 'Dawami Member',
+        },
+      },
+      {
+        key: 'LifeMember',
+        label: 'Life Member',
+        modules: ['life_member'],
+        screenName: 'MembershipListScreen',
+        params: {
+          memberType: 'Life Member',
+          screenTitle: 'Life Member',
+        },
+      },
+    ],
+  },
+
+  Wazifadar: {
+    label: 'Wazifadar',
+    icon: 'account-school',
+    modules: ['wazifadar'],
+    screenName: 'WazifaApplicationsScreen',
+  },
+
+  Executive: {
+    label: 'Executive',
+    icon: 'account-star',
+    children: [
+      {
+        key: 'MansabiMember',
+        label: 'Mansabi Member',
+        modules: ['mansabi_member'],
+        screenName: 'ExecutiveMembersScreen',
+        params: {
+          memberType: 'Mansabi Member',
+          screenTitle: 'Mansabi Member',
+        },
+      },
+      {
+        key: 'ElectedMember',
+        label: 'Elected Member',
+        modules: ['elected_member'],
+        screenName: 'ExecutiveMembersScreen',
+        params: {
+          memberType: 'Elected Member',
+          screenTitle: 'Elected Member',
+        },
+      },
+      {
+        key: 'MohsinAnjuman',
+        label: 'Mohsin-e-Anjuman',
+        modules: ['mohsin_e_anjuman'],
+        screenName: 'MembershipListScreen',
+        params: {
+          memberType: 'Mohsine member',
+          screenTitle: 'Mohsin-e-Anjuman',
+        },
+      },
+      {
+        key: 'SarparstAnjuman',
+        label: 'Sarparst-e-Anjuman',
+        modules: ['sarparst_e_anjuman'],
+        screenName: 'MembershipListScreen',
+        params: {
+          memberType: 'Sarparast member',
+          screenTitle: 'Sarparst-e-Anjuman',
+        },
+      },
+    ],
+  },
 };
 
-
-//  OfficeBearers: {
-//     label: 'Office Bearers',
-//     icon: 'account-tie',
-//     modules: ['office_bearer'],
-//     screenName: 'OfficeBearersScreen',
-//   },
-
-  // Members: {
-  //   label: 'Members',
-  //   icon: 'account-group',
-  //   children: [
-  //     {
-  //       key: 'UmoomiMember',
-  //       label: 'Umoomi Member',
-  //       modules: ['umoomi_member'],
-  //       screenName: 'UmoomiMemberScreen',
-  //     },
-  //     {
-  //       key: 'DawamiMember',
-  //       label: 'Dawami Member',
-  //       modules: ['dawami_member'],
-  //       screenName: 'DawamiMemberScreen',
-  //     },
-  //     {
-  //       key: 'LifeMember',
-  //       label: 'Life Member',
-  //       modules: ['life_member'],
-  //       screenName: 'LifeMemberScreen',
-  //     },
-  //   ],
-  // },
-
-  // Wazifadar: {
-  //   label: 'Wazifadar',
-  //   icon: 'account-school',
-  //   modules: ['wazifadar'],
-  //   screenName: 'WazifadarScreen',
-  // },
-
-  // Executive: {
-  //   label: 'Executive',
-  //   icon: 'account-star',
-  //   children: [
-  //     {
-  //       key: 'MansabiMember',
-  //       label: 'Mansabi Member',
-  //       modules: ['mansabi_member'],
-  //       screenName: 'MansabiMemberScreen',
-  //     },
-  //     {
-  //       key: 'ElectedMember',
-  //       label: 'Elected Member',
-  //       modules: ['elected_member'],
-  //       screenName: 'ElectedMemberScreen',
-  //     },
-  //     {
-  //       key: 'MohsinAnjuman',
-  //       label: 'Mohsin-e-Anjuman',
-  //       modules: ['mohsin_e_anjuman'],
-  //       screenName: 'MohsinAnjumanScreen',
-  //     },
-  //     {
-  //       key: 'SarparstAnjuman',
-  //       label: 'Sarparst-e-Anjuman',
-  //       modules: ['sarparst_e_anjuman'],
-  //       screenName: 'SarparstAnjumanScreen',
-  //     },
-  //   ],
-  // },
 export const ROLE_MENUS = {
-  SuperAdmin: [
-    'Dashboard',
-    'Post',
-    'Blogs',
-    'News',
-    'Events',
-    'JobsCareer',
-    'Donation',
-    'Appeal',
-    'Scholarship',
-  ],
-  Admin: [
-    'Dashboard',
-    'Post',
-    'Blogs',
-    'News',
-    'Events',
-    'JobsCareer',
-    'Donation',
-    'Appeal',
-    'Scholarship',
-  ],
-  ExecutiveMember: [
-    'Dashboard',
-    'Post',
-    'Blogs',
-    'News',
-    'Events',
-    'JobsCareer',
-    'Donation',
-    'Appeal',
-    'Scholarship',
-  ],
-  OfficeBearer: [
-    'Dashboard',
-    'Post',
-    'Blogs',
-    'News',
-    'Events',
-    'JobsCareer',
-    'Donation',
-    'Appeal',
-    'Scholarship',
-  ],
-  'Office Bearers': [
-    'Dashboard',
-    'Post',
-    'Blogs',
-    'News',
-    'Events',
-    'JobsCareer',
-    'Donation',
-    'Appeal',
-    'Scholarship',
-  ],
-  OfficeStaff: [
-    'Dashboard',
-    'Post',
-    'Blogs',
-    'News',
-    'Events',
-    'JobsCareer',
-    'Donation',
-    'Appeal',
-    'Scholarship',
-  ],
-  LocalSecretary: [
-    'Dashboard',
-    'Post',
-    'Blogs',
-    'News',
-    'Events',
-    'JobsCareer',
-    'Donation',
-    'Appeal',
-    'Scholarship',
-  ],
-  Membership: [
-    'Dashboard',
-    'Post',
-    'Blogs',
-    'News',
-    'Events',
-    'JobsCareer',
-    'Donation',
-    'Appeal',
-    'Scholarship',
-  ],
-  WazifaUser: [
-    'Dashboard',
-    'Post',
-    'Blogs',
-    'News',
-    'Events',
-    'JobsCareer',
-    'Donation',
-    'Appeal',
-    'Scholarship',
-  ],
+  SuperAdmin: Object.keys(MENU_CONFIG),
 };
 
 /**
@@ -252,11 +177,13 @@ export const ROLE_MENUS = {
  * @returns {Array} Array of menu objects with label, icon, modules
  */
 export const getMenuForRole = role => {
-  const menuKeys = ROLE_MENUS[role] || [];
-  return menuKeys.map(key => ({
-    name: key,
-    ...MENU_CONFIG[key],
-  }));
+  const menuKeys = ROLE_MENUS[role] || Object.keys(MENU_CONFIG);
+  return menuKeys
+    .filter(key => MENU_CONFIG[key])
+    .map(key => ({
+      name: key,
+      ...MENU_CONFIG[key],
+    }));
 };
 
 /**
@@ -270,17 +197,16 @@ export const getModulesForMenu = menuKey => {
 
 /**
  * Helper to check if user has ANY permission for a menu
- * @param {string} menuKey - Menu key (e.g., 'Collection')
+ * @param {string} menuKey - Menu key
  * @param {Array} userPermissions - User's permission modules array
  * @returns {boolean}
  */
 export const hasMenuAccess = (menuKey, userPermissions) => {
-  if (!userPermissions || userPermissions.length === 0) return false;
+  if (!userPermissions || userPermissions.length === 0) return true;
 
   const menuModules = getModulesForMenu(menuKey);
-  if (menuModules.length === 0) return false;
+  if (menuModules.length === 0) return true;
 
-  // Check if user has any module for this menu
   return menuModules.some(module =>
     userPermissions.some(perm => perm.module === module),
   );

@@ -51,7 +51,7 @@ const TENURES = ['All Appointed Tenure', '2025-2026', '2024-2025', '2023-2024'];
 const STATUSES = ['All Status', 'Active', 'Suspended', 'Expired'];
 const SORT_OPTIONS = ['Recent', 'Oldest', 'Name (A-Z)'];
 
-const OfficeBearerMasterScreen = ({ navigation }) => {
+const OfficeBearerScreen = ({ navigation }) => {
   const { bearers, loading, page, total, loadBearers, deleteBearer } =
     useOfficeBearers();
 
@@ -210,28 +210,14 @@ const OfficeBearerMasterScreen = ({ navigation }) => {
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={styles.cardInfo}>
-          <Text style={styles.srNo}>#{(page - 1) * 50 + index + 1}</Text>
+          <Text style={styles.srNo}>{(page - 1) * 50 + index + 1}</Text>
           <Text style={styles.nameText} numberOfLines={1}>
             {item.name}
           </Text>
         </View>
         <View style={styles.cardActions}>
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() =>
-              navigation.navigate('AddOfficeBearerScreen', {
-                bearer: item,
-              })
-            }
-          >
-            <Icon name="pencil" size={18} color={colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.deleteBtnStyle]}
-            onPress={() => handleDelete(item)}
-          >
-            <Icon name="trash-can-outline" size={18} color="#DC2626" />
-          </TouchableOpacity>
+
+  
         </View>
       </View>
 
@@ -298,7 +284,7 @@ const OfficeBearerMasterScreen = ({ navigation }) => {
       <View style={styles.container}>
         <BackHeader
           navigation={navigation}
-          title="Office Bearer Master"
+          title="Office Bearer "
           onBack={() => navigation && navigation.goBack()}
         />
 
@@ -347,7 +333,7 @@ const OfficeBearerMasterScreen = ({ navigation }) => {
                           />
                         </View>
 
-                        <TouchableOpacity
+                        {/* <TouchableOpacity
                           style={styles.filterButton}
                           activeOpacity={0.8}
                           onPress={openFilter}
@@ -360,7 +346,7 @@ const OfficeBearerMasterScreen = ({ navigation }) => {
                           {hasActiveFilters && (
                             <View style={styles.filterBadgeDot} />
                           )}
-                        </TouchableOpacity>
+                        </TouchableOpacity> */}
                       </View>
                     </View>
                   }
@@ -381,14 +367,7 @@ const OfficeBearerMasterScreen = ({ navigation }) => {
                   }
                 />
 
-                {/* Bottom Add Button */}
-                <View style={styles.bottomBar}>
-                  <GreenButton
-                    title="+ Add Office Bearer"
-                    onPress={() => navigation.navigate('AddOfficeBearerScreen')}
-                    style={styles.addBtn}
-                  />
-                </View>
+ 
               </>
             )}
           </Body>
@@ -716,4 +695,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default OfficeBearerMasterScreen;
+export default OfficeBearerScreen;

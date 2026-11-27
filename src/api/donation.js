@@ -86,7 +86,7 @@ export const createPayuDonation = async (payload) => {
     console.log('📞 Creating PayU Donation:', payload);
 
     const response = await donation.post(
-      '/payment/payu/create',
+      '/donation/payu/create',
       payload
     );
 
@@ -104,6 +104,62 @@ export const createPayuDonation = async (payload) => {
       message:
         error?.response?.data?.message ||
         'Failed to create PayU donation',
+      data: null,
+    };
+  }
+};
+
+export const createRazorpayDonation = async (payload) => {
+  try {
+    console.log('📞 Creating Razorpay Donation:', payload);
+
+    const response = await donation.post(
+      '/donation/razorpay/create',
+      payload
+    );
+
+    console.log('✅ Razorpay Donation Created:', response.data);
+
+    return response.data;
+  } catch (error) {
+    console.error(
+      '❌ Razorpay Donation Error:',
+      error?.response?.data || error?.message
+    );
+
+    return {
+      success: false,
+      message:
+        error?.response?.data?.message ||
+        'Failed to create Razorpay donation',
+      data: null,
+    };
+  }
+};
+
+export const verifyPayment = async (payload) => {
+  try {
+    console.log('📞 Verifying Payment:', payload);
+
+    const response = await donation.post(
+      '/donation/razorpay/verify',
+      payload
+    );
+
+    console.log('✅ Payment Verified:', response.data);
+
+    return response.data;
+  } catch (error) {
+    console.error(
+      '❌ Payment Verification Error:',
+      error?.response?.data || error?.message
+    );
+
+    return {
+      success: false,
+      message:
+        error?.response?.data?.message ||
+        'Failed to verify payment',
       data: null,
     };
   }

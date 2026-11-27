@@ -11,70 +11,139 @@ import {
 } from 'react-native';
 
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import colors from '../../../../themes/colors';
-import { FontFamily, FontSize } from '../../../../themes/typography';
+import colors from '../../themes/colors';
+import { FontFamily, FontSize } from '../../themes/typography';
 
-import AppLayout from '../../../../components/AppLayout/AppLayout';
-import BackHeader from '../../../../components/BackHeader/BackHeader';
+import AppLayout from '../../components/AppLayout/AppLayout';
+import BackHeader from '../../components/BackHeader/BackHeader';
 import {
   Body,
   Label,
   SearchField,
-  DateField,
   Dropdown,
+  DateField,
   GreenButton,
   GrayButton,
+  Badge,
   shared,
-} from '../../../../components/Formparts';
+} from '../../components/Formparts';
 import { widthPercentageToDP as wp } from 'react-native-responsive-screen';
-import { createAxiosInstance } from '../../../../api/apiConfig';
+import { fetchMembersList } from '../../api/member';
+import { createAxiosInstance } from '../../api/apiConfig';
 
 const api = createAxiosInstance('');
 
-const STATUS_OPTIONS = ['All Status', 'Pending', 'Approved', 'Rejected'];
-const DISBURSED_OPTIONS = ['Pending', 'Disbursed', 'Returned', 'Resend'];
+const MEMBER_TYPES = [
+  'All Types',
+  'Ordinary Member',
+  'Life Member',
+  'Dawami Member',
+  'Sarparast Member',
+  'Mohsine Member',
+];
 
-const WazifaDueReportScreen = ({ navigation }) => {
+const MEMBER_STATUSES = [
+  'All Status',
+  'Active',
+  'TimeBar',
+  'Suspended',
+  'Expired',
+];
+const CITIZENSHIP_LIST = ['All', 'Indian', 'Foreign'];
+const PAYMENT_MODES = ['All Modes', 'Bank Transfer', 'UPI', 'Cash'];
+
+// ✅ Date formatter function - dd/mm/yyyy
+const formatDate = dateString => {
+  if (!dateString) return '';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString; // Return as-is if invalid
+
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+
+    return `${day}/${month}/${year}`;
+  } catch (error) {
+    return dateString;
+  }
+};
+
+const MembershipListScreen = ({ navigation, route }) => {
   const [search, setSearch] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
-  const [dueReportData, setDueReportData] = useState([]);
+  const [membersData, setMembersData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [generatingAC, setGeneratingAC] = useState(false);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const pageSize = 50;
+  const pageSize = 10;
 
   // Debounce timer
   const searchTimerRef = React.useRef(null);
 
+  // Get member type from route params (e.g., Ordinary Member, Life Member, Dawami Member)
+  const preFilteredMemberType = route?.params?.memberType || 'All Types';
+  const screenTitle = route?.params?.screenTitle || 'Membership List';
+
+  // Debug log - check if params are coming
+  React.useEffect(() => {
+    console.log('🔍 [MemberListScreen] Route params:', {
+      memberType: route?.params?.memberType,
+      screenTitle: route?.params?.screenTitle,
+      fullParams: route?.params,
+    });
+  }, [route?.params]);
+
   // Applied Filters
   const [applied, setApplied] = useState({
     search: '',
-    status: '',
-    disbursed: '',
+    memberType: preFilteredMemberType,
+    status: 'All Status',
+    citizenship: 'All',
+    paymentMode: 'All Modes',
     from: null,
     to: null,
   });
 
+  // Draft Filters in Modal
   const [draftSearch, setDraftSearch] = useState('');
-  const [draftStatus, setDraftStatus] = useState('');
-  const [draftDisbursed, setDraftDisbursed] = useState('');
+  const [draftType, setDraftType] = useState(preFilteredMemberType);
+  const [draftStatus, setDraftStatus] = useState('All Status');
+  const [draftCitizenship, setDraftCitizenship] = useState('All');
+  const [draftMode, setDraftMode] = useState('All Modes');
   const [draftFrom, setDraftFrom] = useState(null);
   const [draftTo, setDraftTo] = useState(null);
 
-  const handleLoadMore = () => {
-    if (hasMore && !loading && !loadingMore) {
-      loadDueReport(page + 1);
-    }
-  };
-  const handleRefresh = () => {
+  useEffect(() => {
     setPage(1);
     setHasMore(true);
-    loadDueReport(1, true);
-  };
+    // Update applied filters when memberType from route changes
+    setApplied(prev => ({
+      ...prev,
+      memberType: preFilteredMemberType,
+    }));
+    setDraftType(preFilteredMemberType);
+    loadMembers(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preFilteredMemberType]);
 
-  const loadDueReport = async (pageNum = 1, isRefresh = false) => {
+  useEffect(() => {
+    if (
+      applied.search ||
+      applied.memberType !== 'All Types' ||
+      applied.status !== 'All Status'
+    ) {
+      setPage(1);
+      setHasMore(true);
+      loadMembers(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applied]);
+
+  const loadMembers = async (pageNum = 1, isRefresh = false) => {
     if (pageNum === 1) {
       setLoading(true);
     } else {
@@ -84,76 +153,39 @@ const WazifaDueReportScreen = ({ navigation }) => {
     try {
       setError(null);
 
-      const params = new URLSearchParams();
-      params.append('page', pageNum);
-      params.append('limit', pageSize);
-      params.append('isPagination', true);
+      const response = await fetchMembersList({
+        page: pageNum,
+        limit: pageSize,
+        isPagination: true,
+        search: applied.search,
+        memberType:
+          applied.memberType !== 'All Types' ? applied.memberType : '',
+        status: applied.status !== 'All Status' ? applied.status : '',
+        citizenship: applied.citizenship !== 'All' ? applied.citizenship : '',
+      });
 
-      if (applied.search?.trim()) {
-        params.append('search', applied.search);
-      }
-
-      if (applied.status) {
-        params.append('status', applied.status);
-      }
-
-      if (applied.disbursed) {
-        params.append('disbursedStatus', applied.disbursed);
-      }
-      if (applied.from) {
-        params.append('fromDate', applied.from.toISOString().split('T')[0]);
-      }
-
-      if (applied.to) {
-        params.append('toDate', applied.to.toISOString().split('T')[0]);
-      }
-      const queryString = params.toString();
-      const response = await api.get(
-        `scholarshipForm/getWazifaReport?${queryString}`,
-      );
-      const data = response?.data?.data;
-
-      if (response?.data?.statusCode === 200 && data) {
-        const report = (data || []).map(item => ({
-          ...item,
-          _id: item._id,
-          applicationNo: item.applicationNo || '-',
-          wazifaNumber: item.wazifaNumber || '-',
-          studentName: item.studentName || '-',
-          fatherName: item.fatherName || '-',
-          permanentAddress: item.permanentAddress || item.presentAddress || '-',
-          contactNo: item.contactNo || item.mobileNumber || '-',
-          year: item.presentClass || item.semester || '-',
-          courseOfStudy:
-            typeof item.courseOfStudy === 'object'
-              ? item.courseOfStudy?.name
-              : item.courseOfStudy || '-',
-          totalAnnualFees: item.totalAnnualFees || 0,
-          totalCredit: item.totalCredit || 0,
-          totalDebit: item.totalDebit || 0,
-          balance: item.balance || 0,
-          remarks: item.remarks || '-',
-        }));
+      if (response.success) {
+        const newData = response.members || [];
 
         if (pageNum === 1) {
-          setDueReportData(report);
+          setMembersData(newData);
         } else {
-          setDueReportData(prev => [...prev, ...report]);
+          setMembersData(prev => [...prev, ...newData]);
         }
 
         setPage(pageNum);
-        setHasMore(report.length === pageSize);
+        setHasMore(newData.length === pageSize);
       } else {
-        setError('Failed to load report');
+        setError(response.message || 'Failed to load members');
         if (pageNum === 1) {
-          setDueReportData([]);
+          setMembersData([]);
         }
       }
     } catch (err) {
-      console.error('❌ Error fetching due report:', err);
-      setError('Failed to load report');
+      console.error('❌ Error loading members:', err);
+      setError('Failed to load members');
       if (pageNum === 1) {
-        setDueReportData([]);
+        setMembersData([]);
       }
     } finally {
       if (pageNum === 1) {
@@ -163,16 +195,17 @@ const WazifaDueReportScreen = ({ navigation }) => {
       }
     }
   };
-  useEffect(() => {
+
+  const handleLoadMore = () => {
+    if (hasMore && !loading && !loadingMore) {
+      loadMembers(page + 1);
+    }
+  };
+
+  const handleRefresh = () => {
     setPage(1);
     setHasMore(true);
-    loadDueReport(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applied]);
-
-  const formatCurrency = amount => {
-    if (!amount || amount === 0) return 'Rs 0';
-    return `Rs ${amount.toLocaleString('en-IN')}`;
+    loadMembers(1, true);
   };
 
   // Debounced search
@@ -183,17 +216,23 @@ const WazifaDueReportScreen = ({ navigation }) => {
       clearTimeout(searchTimerRef.current);
     }
 
-    searchTimerRef.current = setTimeout(() => {
-      setApplied(prev => ({
-        ...prev,
-        search: text.trim(),
-      }));
-    }, 500);
+    if (text.length > 0) {
+      searchTimerRef.current = setTimeout(() => {
+        setApplied(prev => ({ ...prev, search: text }));
+        setPage(1);
+      }, 500);
+    } else {
+      setApplied(prev => ({ ...prev, search: '' }));
+      setPage(1);
+    }
   };
+
   const openFilter = () => {
     setDraftSearch(applied.search);
+    setDraftType(applied.memberType);
     setDraftStatus(applied.status);
-    setDraftDisbursed(applied.disbursed);
+    setDraftCitizenship(applied.citizenship);
+    setDraftMode(applied.paymentMode);
     setDraftFrom(applied.from);
     setDraftTo(applied.to);
     setFilterOpen(true);
@@ -203,8 +242,10 @@ const WazifaDueReportScreen = ({ navigation }) => {
     setApplied(prev => ({
       ...prev,
       search: draftSearch,
+      memberType: draftType,
       status: draftStatus,
-      disbursed: draftStatus === 'Approved' ? draftDisbursed : '',
+      citizenship: draftCitizenship,
+      paymentMode: draftMode,
       from: draftFrom,
       to: draftTo,
     }));
@@ -214,115 +255,102 @@ const WazifaDueReportScreen = ({ navigation }) => {
 
   const handleReset = () => {
     setDraftSearch('');
-    setDraftStatus('');
-    setDraftDisbursed('');
+    setDraftType('All Types');
+    setDraftStatus('All Status');
+    setDraftCitizenship('All');
+    setDraftMode('All Modes');
     setDraftFrom(null);
     setDraftTo(null);
-
     setSearch('');
-
     setApplied({
       search: '',
-      status: '',
-      disbursed: '',
+      memberType: 'All Types',
+      status: 'All Status',
+      citizenship: 'All',
+      paymentMode: 'All Modes',
       from: null,
       to: null,
     });
-
-    setDueReportData([]);
+    setMembersData([]);
     setPage(1);
     setHasMore(true);
   };
-  const hasActiveFilters = Boolean(
-    applied.search?.trim() ||
-      applied.status ||
-      applied.disbursed ||
-      applied.from ||
-      applied.to,
-  );
+
+  const getActiveFilterCount = () => {
+    let count = 0;
+    if (applied.search?.trim()) count++;
+    if (applied.memberType !== 'All Types') count++;
+    if (applied.status !== 'All Status') count++;
+    if (applied.citizenship !== 'All') count++;
+    if (applied.paymentMode !== 'All Modes') count++;
+    if (applied.from) count++;
+    if (applied.to) count++;
+    return count;
+  };
+
+  const hasActiveFilters = getActiveFilterCount() > 0;
+
   const filteredData = useMemo(() => {
     // Filtering done backend via API
-    return dueReportData;
-  }, [dueReportData]);
+    return membersData;
+  }, [membersData]);
 
-  const renderItem = ({ item, index }) => {
-    const balance = (item.totalDebit || 0) - (item.totalCredit || 0);
+  const renderItem = ({ item, index }) => (
+    <View style={styles.card}>
+      <View style={styles.cardTopRow}>
+        <Text style={styles.srNo}>{index + 1}</Text>
+        <Text style={styles.idText}>
+          ID: {item.uniqueId} (M-ID: {item.memberId})
+        </Text>
+        <Badge text={item.status} />
+      </View>
 
-    return (
-      <View style={styles.card}>
-        <View style={styles.cardTopRow}>
-          <Text style={styles.srNo}>#{(page - 1) * 50 + index + 1}</Text>
-          <Text style={styles.wazifaBadgeText}>
-            {item.applicationNo || '-'}
-          </Text>
-        </View>
+      <View style={styles.divider} />
 
-        <View style={styles.divider} />
-
-        <View style={styles.infoGrid}>
-          <View style={styles.infoCol}>
-            <Text style={styles.labelKey}>Name</Text>
-            <Text style={styles.valTextBold}>{item.studentName || '-'}</Text>
-          </View>
-          <View style={styles.infoColRight}>
-            <Text style={styles.labelKey}>Father's Name</Text>
-            <Text style={styles.valText}>{item.fatherName || '-'}</Text>
-          </View>
-        </View>
-
-        <View style={styles.infoGrid}>
-          <View style={styles.infoCol}>
-            <Text style={styles.labelKey}>Address</Text>
-            <Text style={styles.valText} numberOfLines={2}>
-              {item.permanentAddress || '-'}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.infoGrid}>
-          <View style={styles.infoCol}>
-            <Text style={styles.labelKey}>Mobile No.</Text>
-            <Text style={styles.valTextPrimary}>{item.contactNo || '-'}</Text>
-          </View>
-          <View style={styles.infoColRight}>
-            <Text style={styles.labelKey}>Course</Text>
-            <Text style={styles.valText}>{item.courseOfStudy || '-'}</Text>
-          </View>
-        </View>
-
-        <View style={styles.amountBoxRow}>
-          <View style={styles.amountItem}>
-            <Text style={styles.labelKey}>T-AMT</Text>
-            <Text style={styles.valAmt}>{formatCurrency(item.totalDebit)}</Text>
-          </View>
-          <View style={styles.amountItem}>
-            <Text style={styles.labelKey}>Paid</Text>
-            <Text style={[styles.valAmt, styles.amountPaid]}>
-              {formatCurrency(item.totalCredit)}
-            </Text>
-          </View>
-          <View style={styles.amountItem}>
-            <Text style={styles.labelKey}>Balance</Text>
-            <Text
-              style={[
-                styles.valAmt,
-                balance > 0 ? styles.amountDue : styles.amountPaid,
-              ]}
-            >
-              {formatCurrency(Math.max(balance, 0))}
-            </Text>
-          </View>
+      <View style={styles.infoGrid}>
+        <View style={styles.infoCol}>
+          <Text style={styles.labelKey}>Full Name</Text>
+          <Text style={styles.valTextBold}>{item.fullName}</Text>
         </View>
       </View>
-    );
-  };
+
+      <View style={styles.infoGrid}>
+        <View style={styles.infoCol}>
+          <Text style={styles.labelKey}>WMRN</Text>
+          <Text style={styles.valText}>{item.acountNo}</Text>
+        </View>
+        <View style={styles.infoColRight}>
+          <Text style={styles.labelKey}>Mobile No.</Text>
+          <Text style={styles.valText}>{item.mobileNumber}</Text>
+        </View>
+      </View>
+
+      <View style={styles.infoGrid}>
+        <View style={styles.infoCol}>
+          <Text style={styles.labelKey}>Address</Text>
+          <Text style={styles.valText} numberOfLines={2}>
+            {item.address}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.infoGrid}>
+        <View style={styles.infoCol}>
+          <Text style={styles.labelKey}>Membership / Renew Date</Text>
+          <Text style={styles.valText}>
+            {formatDate(item.membershipDate)} / {formatDate(item.renewDate)}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
 
   return (
     <AppLayout>
       <View style={styles.container}>
         <BackHeader
           navigation={navigation}
-          title="Wazifa Due Report"
+          title={screenTitle}
           onBack={() => navigation && navigation.goBack()}
         />
 
@@ -338,18 +366,14 @@ const WazifaDueReportScreen = ({ navigation }) => {
                 <Text style={styles.errorText}>{error}</Text>
                 <GreenButton
                   title="Retry"
-                  onPress={() => {
-                    setPage(1);
-                    setHasMore(true);
-                    loadDueReport(1);
-                  }}
+                  onPress={loadMembers}
                   style={styles.retryBtn}
                 />
               </View>
             ) : (
               <FlatList
                 data={filteredData}
-                keyExtractor={item => item._id || Math.random().toString()}
+                keyExtractor={(item, idx) => item._id || idx.toString()}
                 renderItem={renderItem}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.listContent}
@@ -372,16 +396,21 @@ const WazifaDueReportScreen = ({ navigation }) => {
                 }
                 ListHeaderComponent={
                   <View>
+                    <Text style={styles.screenDesc}>
+                      Manage membership list applications
+                    </Text>
+
+                    {/* Search Field & Filter Icon Row */}
                     <View style={styles.searchFilterContainer}>
                       <View style={styles.searchFlex}>
                         <SearchField
-                          placeholder="Search name, Wazifa No, mobile..."
+                          placeholder="Search member, ID, address..."
                           value={search}
                           onChangeText={handleSearch}
                         />
                       </View>
 
-                      <TouchableOpacity
+                      {/* <TouchableOpacity
                         style={styles.filterButton}
                         activeOpacity={0.8}
                         onPress={openFilter}
@@ -394,20 +423,20 @@ const WazifaDueReportScreen = ({ navigation }) => {
                         {hasActiveFilters && (
                           <View style={styles.filterBadgeDot} />
                         )}
-                      </TouchableOpacity>
+                      </TouchableOpacity> */}
                     </View>
                   </View>
                 }
                 ListEmptyComponent={
                   <View style={styles.emptyContainer}>
                     <Icon
-                      name="file-search-outline"
+                      name="account-search-outline"
                       size={40}
                       color="#9CA3AF"
                     />
-                    <Text style={styles.emptyTitle}>No records found</Text>
+                    <Text style={styles.emptyTitle}>No members found</Text>
                     <Text style={styles.emptySubtitle}>
-                      Try adjusting your search or filter criteria.
+                      Try adjusting your search or filters.
                     </Text>
                   </View>
                 }
@@ -433,39 +462,54 @@ const WazifaDueReportScreen = ({ navigation }) => {
               onStartShouldSetResponder={() => true}
             >
               <View style={styles.modalHeaderRow}>
-                <Text style={styles.filterTitle}>Filter Report</Text>
+                <Text style={styles.filterTitle}>Filter Membership List</Text>
                 <TouchableOpacity onPress={() => setFilterOpen(false)}>
                   <Icon name="close" size={22} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
 
+              <Label text="Member Type" />
+              <Dropdown
+                value={draftType}
+                options={MEMBER_TYPES}
+                onSelect={setDraftType}
+                style={styles.modalGap}
+              />
+
               <Label text="Status" />
-         <Dropdown
-  value={draftStatus || 'All Status'}
-  options={STATUS_OPTIONS}
-  onSelect={val => {
-    setDraftStatus(val === 'All Status' ? '' : val);
-
-    if (val !== 'Approved') {
-      setDraftDisbursed('');
-    }
-  }}
-  style={styles.modalGap}
-/>
-
-              {draftStatus === 'Approved' && (
-                <>
-                  <Label text="Disbursed Status" />
-                  <Dropdown
-                    value={draftDisbursed}
-                    options={['', ...DISBURSED_OPTIONS]}
-                    onSelect={setDraftDisbursed}
-                    style={styles.modalGap}
-                  />
-                </>
-              )}
+              <Dropdown
+                value={draftStatus}
+                options={MEMBER_STATUSES}
+                onSelect={setDraftStatus}
+                style={styles.modalGap}
+              />
 
               <View style={[shared.row, styles.modalDateRow]}>
+                <View style={shared.colL}>
+                  <Label text="Citizenship" />
+                  <Dropdown
+                    value={draftCitizenship}
+                    options={CITIZENSHIP_LIST}
+                    onSelect={setDraftCitizenship}
+                  />
+                </View>
+                <View style={shared.col}>
+                  <Label text="Payment Mode" />
+                  <Dropdown
+                    value={draftMode}
+                    options={PAYMENT_MODES}
+                    onSelect={setDraftMode}
+                  />
+                </View>
+              </View>
+
+              <View
+                style={[
+                  shared.row,
+                  styles.modalDateRow,
+                  styles.modalDateRowTop,
+                ]}
+              >
                 <View style={shared.colL}>
                   <Label text="From Date" />
                   <DateField
@@ -475,7 +519,6 @@ const WazifaDueReportScreen = ({ navigation }) => {
                     hideRightIcon
                   />
                 </View>
-
                 <View style={shared.col}>
                   <Label text="To Date" />
                   <DateField
@@ -493,11 +536,13 @@ const WazifaDueReportScreen = ({ navigation }) => {
                   onPress={applyFilter}
                   style={styles.applyBtn}
                 />
-                <GrayButton
-                  title="Reset"
-                  onPress={handleReset}
-                  style={styles.resetBtn}
-                />
+                {hasActiveFilters && (
+                  <GrayButton
+                    title="Reset"
+                    onPress={handleReset}
+                    style={styles.resetBtn}
+                  />
+                )}
               </View>
             </View>
           </TouchableOpacity>
@@ -533,40 +578,21 @@ const styles = StyleSheet.create({
     marginTop: 12,
     textAlign: 'center',
   },
-
-  topHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 10,
-    marginBottom: 8,
+  retryBtn: {
+    marginTop: 16,
   },
+
   screenDesc: {
     fontSize: FontSize.sm,
     fontFamily: FontFamily.regular,
     color: colors.textSecondary,
-    flex: 1,
-  },
-  exportBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  exportText: {
-    fontSize: FontSize.sm,
-    fontFamily: FontFamily.bold,
-    color: '#DC2626',
-    marginLeft: 4,
+    marginBottom: 8,
   },
 
   searchFilterContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 14,
-    marginTop: 25,
+    marginBottom: 12,
   },
   searchFlex: {
     flex: 1,
@@ -625,14 +651,10 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.bold,
     color: colors.primary,
   },
-  wazifaBadgeText: {
+  idText: {
     fontSize: FontSize.sm,
-    fontFamily: FontFamily.bold,
-    color: colors.primary,
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    fontFamily: FontFamily.medium,
+    color: colors.textSecondary,
   },
   divider: {
     height: 1,
@@ -652,7 +674,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   labelKey: {
-    fontSize: 10,
+    fontSize: 12,
     fontFamily: FontFamily.medium,
     color: colors.textSecondary,
   },
@@ -671,25 +693,37 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.regular,
     color: colors.TitleColor,
   },
-  amountBoxRow: {
+
+  // Bottom Button Bar Styles
+  bottomBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-    padding: 8,
-    marginTop: 6,
-    borderWidth: 1,
-    borderColor: colors.neutral.border,
-  },
-  amountItem: {
-    flex: 1,
     alignItems: 'center',
+    paddingHorizontal: wp('4%'),
+    paddingVertical: 12,
+    backgroundColor: colors.white,
+    borderTopWidth: 1,
+    borderTopColor: colors.neutral.border,
+    gap: 10,
   },
-  valAmt: {
+  exportButtonBar: {
+    flex: 1,
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEE2E2',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  exportButtonText: {
     fontSize: FontSize.sm,
     fontFamily: FontFamily.bold,
-    color: colors.TitleColor,
-    marginTop: 2,
+    color: '#DC2626',
+  },
+  genButtonBar: {
+    flex: 1.2,
+    height: 48,
   },
 
   emptyContainer: {
@@ -735,15 +769,18 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.bold,
     color: colors.TitleColor,
   },
-  modalDateRow: {
-    marginBottom: 4,
-  },
   modalGap: {
     marginBottom: 12,
   },
+  modalDateRow: {
+    marginBottom: 0,
+  },
+  modalDateRowTop: {
+    marginTop: 12,
+  },
   actionRow: {
     flexDirection: 'row',
-    marginTop: 14,
+    marginTop: 16,
   },
   applyBtn: {
     flex: 1,
@@ -754,9 +791,6 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
   },
-  retryBtn: {
-    marginTop: 16,
-  },
 });
 
-export default WazifaDueReportScreen;
+export default MembershipListScreen;

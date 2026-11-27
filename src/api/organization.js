@@ -307,13 +307,18 @@ export const getExecutiveMembers = async (
   page = 1,
   limit = 50,
   search = '',
+  memberType = '',
 ) => {
   try {
     const params = new URLSearchParams();
     params.append('page', page);
     params.append('limit', limit);
+    params.append('isPagination', true);
     if (search?.trim()) {
       params.append('search', search);
+    }
+    if (memberType?.trim()) {
+      params.append('memberType', memberType);
     }
 
     const response = await api.get(`executive-member?${params.toString()}`);
@@ -325,6 +330,8 @@ export const getExecutiveMembers = async (
         response.data?.data ||
         [],
       total: response.data?.data?.total || response.data?.total || 0,
+      totalPages: response.data?.data?.totalPages || Math.ceil((response.data?.data?.total || 0) / limit),
+      currentPage: response.data?.data?.currentPage || page,
       message: response.data?.message,
     };
   } catch (error) {
@@ -332,6 +339,9 @@ export const getExecutiveMembers = async (
     return {
       success: false,
       members: [],
+      total: 0,
+      totalPages: 1,
+      currentPage: page,
       message: error.message,
     };
   }

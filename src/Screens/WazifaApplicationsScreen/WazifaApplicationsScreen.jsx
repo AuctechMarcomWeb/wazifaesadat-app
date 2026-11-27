@@ -12,61 +12,103 @@ import {
 } from 'react-native';
 
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import colors from '../../../../themes/colors';
-import { FontFamily, FontSize } from '../../../../themes/typography';
+import colors from '../../themes/colors';
+import { FontFamily, FontSize } from '../../themes/typography';
 
-import AppLayout from '../../../../components/AppLayout/AppLayout';
-import BackHeader from '../../../../components/BackHeader/BackHeader';
+import AppLayout from '../../components/AppLayout/AppLayout';
+import BackHeader from '../../components/BackHeader/BackHeader';
 import {
   Body,
   Label,
   SearchField,
   Dropdown,
-  DateField,
   GreenButton,
   GrayButton,
   Badge,
-  shared,
-} from '../../../../components/Formparts';
+} from '../../components/Formparts';
 import { widthPercentageToDP as wp } from 'react-native-responsive-screen';
 
-import { fetchVerifiedWazifaApplications } from '../../../../api/wazifa';
+import {
+  fetchWazifaApplications,
+  fetchSessions,
+  deleteWazifaApplication,
+  updateWazifaStatus,
+} from '../../api/wazifa';
 
-const DISBURSEMENT_STATUSES = [
-  'All',
+const STATUSES = [
+  'All Status',
   'Pending',
-  'Disbursed',
-  'Returned',
-  'Resend',
+  'Shortlisted',
+  'Approved',
+  'Rejected',
 ];
-const FORM_TYPES = ['All', 'New', 'Renewal'];
+const FORM_TYPES = ['All Types', 'New', 'Renewal'];
 
-const VerifyWazifaListScreen = ({ navigation }) => {
+const WazifaApplicationsScreen = ({ navigation }) => {
   const [search, setSearch] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [applications, setApplications] = useState([]);
+  const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const pageSize = 10;
 
-  // Applied Filters
+  // Update Status Modal State
+  const [selectedApplicationId, setSelectedApplicationId] = useState(null);
+  const [selectedApplicationData, setSelectedApplicationData] = useState(null);
+
   const [applied, setApplied] = useState({
     search: '',
-    disbursementStatus: 'All',
-    formType: 'All',
-    from: null,
-    to: null,
+    status: 'All Status',
+    formType: 'All Types',
+    courseType: 'All',
+    session: 'All Sessions',
   });
 
-  // Draft Filters inside Modal
-  const [draftDisbursement, setDraftDisbursement] = useState('All');
-  const [draftFormType, setDraftFormType] = useState('All');
-  const [draftFrom, setDraftFrom] = useState(null);
-  const [draftTo, setDraftTo] = useState(null);
+  const [draftStatus, setDraftStatus] = useState('All Status');
+  const [draftFormType, setDraftFormType] = useState('All Types');
+  const [draftCourseType, setDraftCourseType] = useState('All');
+  const [draftSession, setDraftSession] = useState('All Sessions');
 
-  // Load verified applications
+  // Map to store session name -> _id mapping
+  const sessionMap = useMemo(() => {
+    const map = { 'All Sessions': 'All Sessions' };
+    sessions.forEach(s => {
+      map[s.name] = s._id;
+    });
+    return map;
+  }, [sessions]);
+
+  // Load sessions
+  useEffect(() => {
+    const loadSessions = async () => {
+      try {
+        const result = await fetchSessions();
+        if (result.success && result.sessions) {
+          setSessions(result.sessions);
+
+          // ✅ Find current session and set as default filter
+          const currentSession = result.sessions.find(
+            s => s.isCurrent === true,
+          );
+          if (currentSession) {
+            setApplied(prev => ({
+              ...prev,
+              session: currentSession._id,
+            }));
+            setDraftSession(currentSession.name);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading sessions:', error);
+      }
+    };
+    loadSessions();
+  }, []);
+
+  // Load applications
   const loadApplications = useCallback(
     async (pageNum = 1, isRefresh = false) => {
       if (pageNum === 1) {
@@ -76,21 +118,14 @@ const VerifyWazifaListScreen = ({ navigation }) => {
       }
 
       try {
-        const result = await fetchVerifiedWazifaApplications({
+        const result = await fetchWazifaApplications({
           page: pageNum,
           limit: pageSize,
           search: applied.search,
-          disbursedStatus:
-            applied.disbursementStatus !== 'All'
-              ? applied.disbursementStatus
-              : '',
-          formType: applied.formType !== 'All' ? applied.formType : '',
-          ...(applied.from && {
-            fromDate: applied.from.toISOString(),
-          }),
-          ...(applied.to && {
-            toDate: applied.to.toISOString(),
-          }),
+          status: applied.status !== 'All Status' ? applied.status : '',
+          formType: applied.formType !== 'All Types' ? applied.formType : '',
+          courseType: applied.courseType !== 'All' ? applied.courseType : '',
+          session: applied.session !== 'All Sessions' ? applied.session : '',
         });
 
         if (result.success) {
@@ -107,7 +142,7 @@ const VerifyWazifaListScreen = ({ navigation }) => {
         }
       } catch (error) {
         console.error('Error loading applications:', error);
-        Alert.alert('Error', 'Failed to load verified applications');
+        Alert.alert('Error', 'Failed to load applications');
       } finally {
         if (pageNum === 1) {
           setLoading(false);
@@ -119,12 +154,13 @@ const VerifyWazifaListScreen = ({ navigation }) => {
     [applied, pageSize],
   );
 
-  // Load applications on mount and whenever filters change
+  // Load applications when filters change
   useEffect(() => {
     setPage(1);
     setHasMore(true);
     loadApplications(1);
   }, [applied, loadApplications]);
+
   const handleLoadMore = () => {
     if (hasMore && !loading && !loadingMore) {
       loadApplications(page + 1);
@@ -138,57 +174,67 @@ const VerifyWazifaListScreen = ({ navigation }) => {
   };
 
   const openFilter = () => {
-    setDraftDisbursement(applied.disbursementStatus);
+    setDraftStatus(applied.status);
     setDraftFormType(applied.formType);
-    setDraftFrom(applied.from);
-    setDraftTo(applied.to);
+    setDraftCourseType(applied.courseType);
+    setDraftSession(applied.session);
     setFilterOpen(true);
   };
 
   const applyFilter = () => {
     setApplied(prev => ({
       ...prev,
-      disbursementStatus: draftDisbursement,
+      status: draftStatus,
       formType: draftFormType,
-      from: draftFrom,
-      to: draftTo,
+      courseType: draftCourseType,
+      session:
+        draftSession === 'All Sessions'
+          ? 'All Sessions'
+          : sessionMap[draftSession],
     }));
     setHasMore(true);
     setFilterOpen(false);
   };
 
   const handleReset = () => {
-    setDraftDisbursement('All');
-    setDraftFormType('All');
-    setDraftFrom(null);
-    setDraftTo(null);
+    setDraftStatus('All Status');
+    setDraftFormType('All Types');
+    setDraftCourseType('All');
+    setDraftSession('All Sessions');
     setSearch('');
-
     setApplied({
       search: '',
-      disbursementStatus: 'All',
-      formType: 'All',
-      from: null,
-      to: null,
+      status: 'All Status',
+      formType: 'All Types',
+      courseType: 'All',
+      session: 'All Sessions',
     });
-
     setPage(1);
     setHasMore(true);
   };
 
   const hasActiveFilters =
-    applied.disbursementStatus !== 'All' || applied.formType !== 'All';
+    applied.status !== 'All Status' ||
+    applied.formType !== 'All Types' ||
+    applied.courseType !== 'All' ||
+    applied.session !== 'All Sessions';
+
+  const handleUpdateStatus = item => {
+    setSelectedApplicationId(item._id);
+    setSelectedApplicationData(item);
+    setUpdateStatusModalOpen(true);
+  };
 
   const filteredData = useMemo(() => {
     return applications;
   }, [applications]);
 
   const renderItem = ({ item, index }) => (
-    <View style={styles.card}>
+    <View style={styles.appCard}>
       <View style={styles.cardTopRow}>
         <Text style={styles.srNo}>{(page - 1) * pageSize + index + 1}</Text>
         <Text style={styles.portalIdText}>Portal ID: {item.acountNo}</Text>
-        <Badge text={item.status} />
+        {/* <Badge text={item.status} /> */}
       </View>
 
       <View style={styles.divider} />
@@ -206,8 +252,10 @@ const VerifyWazifaListScreen = ({ navigation }) => {
 
       <View style={styles.infoGrid}>
         <View style={styles.infoCol}>
-          <Text style={styles.labelKey}>Course</Text>
-          <Text style={styles.valText}>{item.courseOfStudy}</Text>
+          <Text style={styles.labelKey}>Course / Level</Text>
+          <Text style={styles.valText}>
+            {item.courseOfStudy} ({item.courseType})
+          </Text>
         </View>
         <View style={styles.infoColRight}>
           <Text style={styles.labelKey}>Form Type</Text>
@@ -230,25 +278,15 @@ const VerifyWazifaListScreen = ({ navigation }) => {
 
       <View style={styles.infoGrid}>
         <View style={styles.infoCol}>
+          <Text style={styles.labelKey}>Session</Text>
+          <Text style={styles.valText}>{item.sessionName}</Text>
+        </View>
+        <View style={styles.infoColRight}>
           <Text style={styles.labelKey}>Applied On</Text>
           <Text style={styles.valText}>
             {item.createdAt
               ? new Date(item.createdAt).toLocaleDateString()
               : 'N/A'}
-          </Text>
-        </View>
-        <View style={styles.infoColRight}>
-          <Text style={styles.labelKey}>Disbursed Status</Text>
-          <Text
-            style={[
-              styles.disburseText,
-              {
-                color:
-                  item.disbursedStatus === 'Disbursed' ? '#15803D' : '#D97706',
-              },
-            ]}
-          >
-            {item.disbursedStatus || 'Pending'}
           </Text>
         </View>
       </View>
@@ -260,7 +298,7 @@ const VerifyWazifaListScreen = ({ navigation }) => {
       <View style={styles.container}>
         <BackHeader
           navigation={navigation}
-          title="Verify Wazifa List"
+          title="Wazifa Applications"
           onBack={() => navigation && navigation.goBack()}
         />
 
@@ -268,7 +306,7 @@ const VerifyWazifaListScreen = ({ navigation }) => {
           <Body>
             <FlatList
               data={filteredData}
-              keyExtractor={item => item._id}
+              keyExtractor={item => item.id}
               renderItem={renderItem}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.listContent}
@@ -291,21 +329,20 @@ const VerifyWazifaListScreen = ({ navigation }) => {
               }
               ListHeaderComponent={
                 <View>
-                  {/* Search Bar & Filter Icon */}
+                  {/* Search Field & Filter Icon Row */}
                   <View style={styles.searchFilterContainer}>
                     <View style={styles.searchFlex}>
                       <SearchField
-                        placeholder="Search student, Portal ID..."
+                        placeholder="Search student, Portal ID, Wazifa No..."
                         value={search}
                         onChangeText={text => {
                           setSearch(text);
                           setApplied(prev => ({ ...prev, search: text }));
-                          setPage(1);
                         }}
                       />
                     </View>
 
-                    <TouchableOpacity
+                    {/* <TouchableOpacity
                       style={styles.filterButton}
                       activeOpacity={0.8}
                       onPress={openFilter}
@@ -318,31 +355,18 @@ const VerifyWazifaListScreen = ({ navigation }) => {
                       {hasActiveFilters && (
                         <View style={styles.filterBadgeDot} />
                       )}
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
                   </View>
                 </View>
               }
               ListEmptyComponent={
-                loading ? (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={colors.primary} />
-                    <Text style={styles.loadingText}>
-                      Loading verified applications...
-                    </Text>
-                  </View>
-                ) : (
-                  <View style={styles.emptyContainer}>
-                    <Icon
-                      name="file-search-outline"
-                      size={40}
-                      color="#9CA3AF"
-                    />
-                    <Text style={styles.emptyTitle}>No records found</Text>
-                    <Text style={styles.emptySubtitle}>
-                      Try adjusting your search or filters.
-                    </Text>
-                  </View>
-                )
+                <View style={styles.emptyContainer}>
+                  <Icon name="file-search-outline" size={40} color="#9CA3AF" />
+                  <Text style={styles.emptyTitle}>No applications found</Text>
+                  <Text style={styles.emptySubtitle}>
+                    Try adjusting your search or filters.
+                  </Text>
+                </View>
               }
             />
           </Body>
@@ -365,17 +389,17 @@ const VerifyWazifaListScreen = ({ navigation }) => {
               onStartShouldSetResponder={() => true}
             >
               <View style={styles.modalHeaderRow}>
-                <Text style={styles.filterTitle}>Filter Wazifa List</Text>
+                <Text style={styles.filterTitle}>Filter Applications</Text>
                 <TouchableOpacity onPress={() => setFilterOpen(false)}>
                   <Icon name="close" size={22} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
 
-              <Label text="Disbursement Status" />
+              <Label text="Status" />
               <Dropdown
-                value={draftDisbursement}
-                options={DISBURSEMENT_STATUSES}
-                onSelect={setDraftDisbursement}
+                value={draftStatus}
+                options={STATUSES}
+                onSelect={setDraftStatus}
                 style={styles.modalGap}
               />
 
@@ -387,27 +411,16 @@ const VerifyWazifaListScreen = ({ navigation }) => {
                 style={styles.modalGap}
               />
 
-              <View style={[shared.row, styles.modalDateRow]}>
-                <View style={shared.colL}>
-                  <Label text="From Date" />
-                  <DateField
-                    value={draftFrom}
-                    onChange={setDraftFrom}
-                    leftIcon="calendar-month-outline"
-                    hideRightIcon
-                  />
-                </View>
-
-                <View style={shared.col}>
-                  <Label text="To Date" />
-                  <DateField
-                    value={draftTo}
-                    onChange={setDraftTo}
-                    leftIcon="calendar-month-outline"
-                    hideRightIcon
-                  />
-                </View>
-              </View>
+              <Label text="Session" />
+              <Dropdown
+                value={draftSession}
+                options={[
+                  'All Sessions',
+                  ...sessions.map(s => s.name || s._id),
+                ]}
+                onSelect={setDraftSession}
+                style={styles.modalGap}
+              />
 
               <View style={styles.actionRow}>
                 <GreenButton
@@ -436,26 +449,17 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
-    marginTop: 0,
+    marginTop: 15,
     backgroundColor: colors.white,
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
     overflow: 'hidden',
   },
-
-  screenDesc: {
-    fontSize: FontSize.sm,
-    fontFamily: FontFamily.regular,
-    color: colors.textSecondary,
-    marginTop: 10,
-    marginBottom: 4,
-  },
-
   searchFilterContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 14,
-    marginTop: 25,
+    marginTop: 30,
+    marginBottom: 12,
   },
   searchFlex: {
     flex: 1,
@@ -490,14 +494,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  loadingContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 50,
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 14,
   },
-  loadingText: {
-    marginTop: 12,
-    fontSize: FontSize.md,
+  statCard: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: '#F7FAF8',
+    borderWidth: 1,
+    borderColor: colors.neutral.border,
+    borderRadius: 8,
+    paddingVertical: 8,
+    marginHorizontal: 2,
+  },
+  statVal: {
+    fontSize: FontSize.sm,
+    fontFamily: FontFamily.bold,
+    color: colors.TitleColor,
+    marginTop: 2,
+  },
+  statLbl: {
+    fontSize: 9,
     fontFamily: FontFamily.medium,
     color: colors.textSecondary,
   },
@@ -505,9 +524,8 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: wp('4%'),
     paddingBottom: 20,
-    paddingTop: 8,
   },
-  card: {
+  appCard: {
     backgroundColor: colors.cardColorLight,
     borderWidth: 1,
     borderColor: colors.neutral.border,
@@ -573,11 +591,85 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.bold,
     color: '#15803D',
   },
-  disburseText: {
-    fontSize: FontSize.sm,
-    fontFamily: FontFamily.bold,
+  updateStatusBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primaryLight,
+    borderRadius: 8,
+    paddingVertical: 13,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#C6F6D5',
   },
 
+  updateStatusBtnText: {
+    fontSize: FontSize.sm,
+    fontFamily: FontFamily.bold,
+    color: colors.primary,
+  },
+
+  actionButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+
+  actionBtnIcon: {
+    marginRight: 6,
+  },
+
+  deleteBtnSmall: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
+    borderRadius: 8,
+    paddingVertical: 13,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+
+  deleteSmallBtnText: {
+    fontSize: FontSize.sm,
+    fontFamily: FontFamily.bold,
+    color: '#DC2626',
+  },
+
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 50,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: FontSize.md,
+    fontFamily: FontFamily.medium,
+    color: colors.textSecondary,
+  },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
+    borderRadius: 8,
+    paddingVertical: 8,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  deleteIcon: {
+    marginRight: 6,
+  },
+  deleteBtnText: {
+    fontSize: FontSize.sm,
+    fontFamily: FontFamily.bold,
+    color: '#DC2626',
+  },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -595,6 +687,18 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.regular,
     color: '#6B7280',
     textAlign: 'center',
+  },
+
+  bottom: {
+    paddingHorizontal: wp('4%'),
+    paddingTop: 8,
+    paddingBottom: 18,
+    backgroundColor: colors.white,
+    borderTopWidth: 1,
+    borderTopColor: colors.neutral.border,
+  },
+  addButton: {
+    height: 50,
   },
 
   // Filter Modal Styles
@@ -621,9 +725,6 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.bold,
     color: colors.TitleColor,
   },
-  modalDateRow: {
-    marginBottom: 4,
-  },
   modalGap: {
     marginBottom: 12,
   },
@@ -642,4 +743,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default VerifyWazifaListScreen;
+export default WazifaApplicationsScreen;

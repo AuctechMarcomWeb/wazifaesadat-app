@@ -1,5 +1,4 @@
 import React from 'react';
-
 import {
   View,
   Text,
@@ -20,6 +19,7 @@ const TABS = [
     label: 'Home',
     icon: 'home-outline',
     activeIcon: 'home',
+    params: {},
   },
   {
     key: 'ScholarshipScreen',
@@ -28,28 +28,29 @@ const TABS = [
     activeIcon: 'school',
   },
   {
+    key: 'DonationAppealsScreen',
+    label: 'Donation & Appeals',
+    icon: 'hand-heart-outline',
+    activeIcon: 'hand-heart',
+    params: { contentType: 'Donation' },
+  },
+  {
     key: 'NotificationScreen',
     label: 'Notification',
     icon: 'bell-outline',
     activeIcon: 'bell',
-  },
-  {
-    key: 'SettingScreen',
-    label: 'Setting',
-    icon: 'cog-outline',
-    activeIcon: 'cog',
   },
 ];
 
 const BottomNav = ({ active = 'CommunityPost', onPress }) => {
   const navigation = useNavigation();
 
-  const handleTabPress = tabKey => {
+  const handleTabPress = (tabKey, params = {}) => {
     if (onPress) {
       onPress(tabKey);
     }
 
-    navigation.navigate(tabKey);
+    navigation.navigate(tabKey, params);
   };
 
   return (
@@ -62,7 +63,7 @@ const BottomNav = ({ active = 'CommunityPost', onPress }) => {
             key={tab.key}
             style={styles.tabWrapper}
             activeOpacity={0.75}
-            onPress={() => handleTabPress(tab.key)}
+            onPress={() => handleTabPress(tab.key, tab.params)}
           >
             <View style={[styles.tab, isActive && styles.tabActive]}>
               <Icon
@@ -73,7 +74,7 @@ const BottomNav = ({ active = 'CommunityPost', onPress }) => {
 
               <Text
                 style={[styles.label, isActive && styles.labelActive]}
-                numberOfLines={1}
+                numberOfLines={2}
               >
                 {tab.label}
               </Text>
@@ -125,10 +126,11 @@ const styles = StyleSheet.create({
   },
 
   label: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: FontFamily.medium,
     color: '#64748B',
     marginTop: 3,
+    textAlign: 'center',
   },
 
   labelActive: {

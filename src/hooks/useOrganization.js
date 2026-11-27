@@ -226,11 +226,11 @@ export const useExecutiveMembers = () => {
   const [total, setTotal] = useState(0);
 
   const loadMembers = useCallback(
-    async (pageNum = 1, limit = 50, search = '') => {
+    async (pageNum = 1, limit = 50, search = '', memberType = '') => {
       try {
         setLoading(true);
         setError(null);
-        const result = await getExecutiveMembers(pageNum, limit, search);
+        const result = await getExecutiveMembers(pageNum, limit, search, memberType);
         if (result.success) {
           if (pageNum === 1) {
             setMembers(result.members);
@@ -257,7 +257,7 @@ export const useExecutiveMembers = () => {
         setLoading(true);
         const result = await createExecutiveMember(data);
         if (result.success) {
-          await loadMembers(1, 50, '');
+          await loadMembers(1, 50, '', '');
           return result;
         }
         setError(result.message);
@@ -275,7 +275,7 @@ export const useExecutiveMembers = () => {
         setLoading(true);
         const result = await updateExecutiveMember(id, data);
         if (result.success) {
-          await loadMembers(page, 50, '');
+          await loadMembers(page, 50, '', '');
           return result;
         }
         setError(result.message);
@@ -293,7 +293,7 @@ export const useExecutiveMembers = () => {
         setLoading(true);
         const result = await deleteExecutiveMember(id);
         if (result.success) {
-          await loadMembers(page, 50, '');
+          await loadMembers(page, 50, '', '');
           return result;
         }
         setError(result.message);

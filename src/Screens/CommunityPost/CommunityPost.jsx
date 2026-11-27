@@ -91,7 +91,7 @@ const TABS = [
   { key: 'Post&Blogs', label: 'Post & Blogs' },
   { key: 'News&Events', label: 'News & Events' },
   { key: 'Jobs&Career', label: 'Jobs & Career' },
-  { key: 'Donation&Appeal', label: 'Donation & Appeal' },
+  // { key: 'Donation&Appeal', label: 'Donation & Appeal' },
 ];
 
 const TYPE_META = {

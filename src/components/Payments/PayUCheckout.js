@@ -1,8 +1,14 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { NativeEventEmitter, Alert } from 'react-native';
+import { NativeEventEmitter } from 'react-native';
 import PayUBizSdk from 'payu-non-seam-less-react';
 
-const PayUCheckout = ({ onSuccess, onFailure, onCancel, onError, backendUrl }) => {
+const PayUCheckout = ({
+  onSuccess,
+  onFailure,
+  onCancel,
+  onError,
+  backendUrl,
+}) => {
   const callbacks = useRef({});
   const emitterRef = useRef(null);
 
@@ -13,166 +19,228 @@ const PayUCheckout = ({ onSuccess, onFailure, onCancel, onError, backendUrl }) =
     onError,
   };
 
-  // Register SDK event listeners
   useEffect(() => {
-    try {
-      // Check if PayUBizSdk has proper event emitter support
-      if (!PayUBizSdk || typeof PayUBizSdk !== 'object') {
-        console.warn('⚠️ PayUBizSdk not properly loaded');
-        return;
-      }
-
-      const emitter = new NativeEventEmitter(PayUBizSdk);
-      emitterRef.current = emitter;
-
-      const subscriptions = [
-        emitter.addListener('onPaymentSuccess', event => {
-          console.log('✅ PayU Payment Success:', event);
-          callbacks.current.onSuccess?.(event);
-        }),
-
-        emitter.addListener('onPaymentFailure', event => {
-          console.log('❌ PayU Payment Failure:', event);
-          callbacks.current.onFailure?.(event);
-        }),
-
-        emitter.addListener('onPaymentCancel', event => {
-          console.log('⚠️ PayU Payment Cancelled');
-          callbacks.current.onCancel?.(event);
-        }),
-
-        emitter.addListener('onError', event => {
-          console.log('⚠️ PayU Payment Error:', event);
-          callbacks.current.onError?.(event);
-        }),
-
-        // ✅ CRITICAL: Dynamic Hash Generation Callback
-        // SDK calls this during transaction to get runtime hash
-        // For React Native 0.82.0+, MUST use PayUBizSdk.makeHttpRequest instead of fetch/axios
-        emitter.addListener('generateHash', async event => {
-          console.log('🔐 generateHash callback received:', event);
-          
-          try {
-            const hashString = event.hashString;
-            const hashName = event.hashName;
-            const postSalt = event.postSalt; // Required for split payment/additional charges
-            
-            if (!hashString) {
-              console.error('❌ No hashString in generateHash callback');
-              return;
-            }
-
-            console.log(`📤 Generating hash for ${hashName}:`, hashString.substring(0, 50) + '...');
-            if (postSalt) {
-              console.log(`📝 postSalt provided:`, postSalt);
-            }
-
-            // Prepare request body
-            const rawBody = JSON.stringify({
-              hashString,
-              postSalt: postSalt || undefined,
-            });
-            
-            // Prepare headers
-            const headers = {
-              'Content-Type': 'application/json',
-            };
-            
-            // Build URL - backendUrl should be http://ip:port/api
-            const url = `${backendUrl}/payment/payu/generate-hash`;
-            console.log(`📍 Hash endpoint URL: ${url}`);
-            
-            // ⚠️ CRITICAL FIX: Use PayUBizSdk.makeHttpRequest for React Native 0.82.0+
-            // This is REQUIRED by official PayU docs - not using it causes error 5019
-            const response = await PayUBizSdk.makeHttpRequest(
-              url,
-              'POST',
-              rawBody,
-              headers
-            );
-
-            console.log('📥 Raw response from makeHttpRequest:', response);
-            
-            // Parse response - it may come as string or object
-            let parsedResponse;
-            if (typeof response === 'string') {
-              parsedResponse = JSON.parse(response);
-            } else {
-              parsedResponse = response;
-            }
-
-            console.log('📦 Parsed response:', parsedResponse);
-
-            // Extract hash from backend response
-            // Backend returns: { data: { hash: "...", hashName: "..." } }
-            const hash = parsedResponse?.data?.hash || parsedResponse?.hash;
-            
-            if (hash) {
-              console.log(`✅ Hash generated successfully:`, hash.substring(0, 50) + '...');
-              
-              // Send hash back to SDK via callback
-              const result = { [hashName]: hash };
-              console.log(`📤 Calling PayUBizSdk.hashGenerated with:`, result);
-              PayUBizSdk.hashGenerated(result);
-            } else {
-              console.error('❌ No hash in response:', parsedResponse);
-              callbacks.current.onError?.({ error: 'Hash generation failed - no hash returned' });
-            }
-          } catch (err) {
-            console.error('❌ Error in generateHash:', err);
-            console.error('Error message:', err.message);
-            console.error('Error details:', JSON.stringify(err));
-            callbacks.current.onError?.({ error: `Hash generation error: ${err.message}` });
-          }
-        }),
-      ];
-
-      return () => {
-        subscriptions.forEach(item => item.remove());
-      };
-    } catch (err) {
-      console.error('❌ Error setting up PayU event emitter:', err.message);
-      callbacks.current.onError?.({ error: 'Failed to setup PayU SDK' });
+    if (!PayUBizSdk) {
+      console.error('❌ [PayU] PayUBizSdk is not available');
+      return;
     }
+
+    const emitter = new NativeEventEmitter(PayUBizSdk);
+    emitterRef.current = emitter;
+
+    const subscriptions = [];
+
+    subscriptions.push(
+      emitter.addListener('onPaymentSuccess', event => {
+        console.log('✅ [PayU] onPaymentSuccess:', JSON.stringify(event));
+        callbacks.current.onSuccess?.(event);
+      }),
+    );
+
+    subscriptions.push(
+      emitter.addListener('onPaymentFailure', event => {
+        console.log('❌ [PayU] onPaymentFailure:', JSON.stringify(event));
+        callbacks.current.onFailure?.(event);
+      }),
+    );
+
+    subscriptions.push(
+      emitter.addListener('onPaymentCancel', event => {
+        console.log('⚠️ [PayU] onPaymentCancel:', JSON.stringify(event));
+        callbacks.current.onCancel?.(event);
+      }),
+    );
+
+    subscriptions.push(
+      emitter.addListener('onError', event => {
+        console.error('🚨 [PayU] onError FULL:', JSON.stringify(event));
+        callbacks.current.onError?.(event);
+      }),
+    );
+
+    subscriptions.push(
+      emitter.addListener('generateHash', async event => {
+        console.log('====================================');
+        console.log('🔐 [PayU] generateHash EVENT:', {
+          hashName: event?.hashName,
+          hashString: event?.hashString,
+          postSalt: event?.postSalt ?? null,
+        });
+
+        try {
+          const { hashString, hashName, postSalt } = event || {};
+
+          if (!hashString || !hashName) {
+            throw new Error('Invalid PayU hash callback data');
+          }
+
+          if (!backendUrl) {
+            throw new Error('Backend URL is missing');
+          }
+
+          const url = `${backendUrl}/donation/payu/generate-hash`;
+
+          const requestPayload = {
+            hashString,
+            hashName,
+            ...(postSalt ? { postSalt } : {}),
+          };
+
+          console.log('📤 [PayU] Sending to backend:', {
+            url,
+            requestPayload,
+          });
+
+          const response = await PayUBizSdk.makeHttpRequest(
+            url,
+            'POST',
+            JSON.stringify(requestPayload),
+            { 'Content-Type': 'application/json' },
+          );
+
+          console.log('📥 [PayU] Raw backend response:', response);
+
+          const parsedResponse =
+            typeof response === 'string' ? JSON.parse(response) : response;
+
+          if (
+            parsedResponse?.success === false ||
+            (parsedResponse?.statusCode && parsedResponse.statusCode !== 200)
+          ) {
+            throw new Error(
+              parsedResponse?.message || 'Backend hash API failed',
+            );
+          }
+
+          const hashValue = parsedResponse?.data?.hash || parsedResponse?.hash;
+          const returnedHashName =
+            parsedResponse?.data?.hashName ||
+            parsedResponse?.hashName ||
+            hashName;
+
+          console.log('🔑 [PayU] Backend hash parsed:', {
+            hashName,
+            returnedHashName,
+            hashLength: hashValue?.length,
+            hashValue,
+          });
+
+          if (!hashValue || !/^[a-f0-9]{128}$/i.test(hashValue)) {
+            throw new Error('Invalid SHA-512 hash received from backend');
+          }
+
+          if (returnedHashName !== hashName) {
+            throw new Error(
+              `Hash name mismatch: expected ${hashName}, received ${returnedHashName}`,
+            );
+          }
+
+          const result = {
+            [hashName]: hashValue,
+          };
+
+          console.log('🚀 [PayU] Calling PayUBizSdk.hashGenerated:', result);
+          console.log('====================================');
+          PayUBizSdk.hashGenerated(result);
+        } catch (error) {
+          console.error('❌ [PayU] Hash generation error:', error);
+          callbacks.current.onError?.({
+            errorCode: 'HASH_GENERATION_FAILED',
+            errorMsg: error?.message || 'Unable to generate PayU hash',
+          });
+        }
+      }),
+    );
+
+    return () => {
+      subscriptions.forEach(sub => sub.remove());
+      emitterRef.current = null;
+    };
   }, [backendUrl]);
 
-  // Open PayU Checkout
   const openPayment = useCallback(paymentParams => {
-    console.log('🚀 Opening PayU Checkout with params:', paymentParams);
-    
     try {
-      // PayU React Native SDK expects these exact parameter names (official docs)
-      const params = {
-        key: paymentParams.key,
-        transactionId: paymentParams.transactionId,  // Changed from txnid
-        amount: paymentParams.amount,
-        productinfo: paymentParams.productinfo,
-        firstname: paymentParams.firstname,
-        email: paymentParams.email,
-        phone: paymentParams.phone,
-        // Platform-specific URLs
-        android_surl: paymentParams.android_surl,
-        android_furl: paymentParams.android_furl,
-        ios_surl: paymentParams.ios_surl,
-        ios_furl: paymentParams.ios_furl,
-        // Nested hashes object
-        hashes: paymentParams.hashes,
-        environment: paymentParams.environment,
-        userCredential: paymentParams.userCredential,
+      if (!paymentParams) {
+        throw new Error('PayU payment parameters are missing');
+      }
+
+      const {
+        key,
+        transactionId,
+        amount,
+        productInfo,
+        productinfo,
+        firstName,
+        firstname,
+        email,
+        phone,
+        android_surl,
+        android_furl,
+        ios_surl,
+        ios_furl,
+        environment,
+        userCredential,
+        userToken,
+        additionalParam,
+      } = paymentParams;
+
+      const resolvedProductInfo = productInfo ?? productinfo;
+      const resolvedFirstName = firstName ?? firstname;
+
+      if (
+        !key ||
+        !transactionId ||
+        !amount ||
+        !resolvedProductInfo ||
+        !resolvedFirstName ||
+        !email
+      ) {
+        throw new Error('Required PayU payment parameters are missing');
+      }
+
+      if (String(transactionId).length > 25) {
+        throw new Error('PayU transaction ID cannot exceed 25 characters');
+      }
+
+      const payUPaymentParams = {
+        key: String(key),
+        transactionId: String(transactionId),
+        amount: String(amount),
+        productInfo: String(resolvedProductInfo),
+        firstName: String(resolvedFirstName),
+        email: String(email),
+        phone: String(phone || ''),
+        android_surl: android_surl || '',
+        android_furl: android_furl || '',
+        ios_surl: ios_surl || '',
+        ios_furl: ios_furl || '',
+        environment: String(environment ?? '0'),
+        userCredential: userCredential || `${key}:${email}`,
+        ...(userToken ? { userToken } : {}),
+        ...(additionalParam ? { additionalParam } : {}),
+        hashes: {},
       };
 
-      console.log('📤 Sending to SDK:', params);
+      console.log(
+        '💳 [PayU] openCheckoutScreen FULL PARAMS:',
+        payUPaymentParams,
+      );
 
       PayUBizSdk.openCheckoutScreen({
-        payUPaymentParams: params,
+        payUPaymentParams,
       });
     } catch (error) {
-      console.error('❌ Error opening PayU checkout:', error);
-      callbacks.current.onError?.(error);
+      console.error('❌ [PayU] Checkout error:', error);
+      callbacks.current.onError?.({
+        errorCode: 'CHECKOUT_INITIALIZATION_FAILED',
+        errorMsg: error?.message || 'Unable to open PayU checkout',
+      });
     }
   }, []);
 
-  return { openPayment };
+  return {
+    openPayment,
+  };
 };
 
 export default PayUCheckout;

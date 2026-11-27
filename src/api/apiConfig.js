@@ -1,9 +1,12 @@
-
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Main API URL - Use env variable with fallback
-export const BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://192.168.1.9:9004/api';
+// export const BASE_URL = 'https://api.wazifaesadat.org/api';
+export const BASE_URL = 'http://192.168.1.9:9004/api';
+
+// Base URL without /api suffix (for PayU and other raw endpoints)
+export const BASE_URL_ROOT = BASE_URL.replace('/api', '');
 
 // Jobs API URL
 export const JOBS_BASE_URL = 'https://jobsapi.wazifaesadat.org/api';
@@ -53,7 +56,9 @@ export const createAxiosInstance = (endpoint = '') => {
         });
 
         if (!_cachedToken) {
-          console.log('🔐 [apiConfig] No cached token, fetching from storage...');
+          console.log(
+            '🔐 [apiConfig] No cached token, fetching from storage...',
+          );
           _cachedToken = await AsyncStorage.getItem('authToken');
           console.log('🔐 [apiConfig] Token from storage:', {
             exists: !!_cachedToken,
@@ -70,10 +75,13 @@ export const createAxiosInstance = (endpoint = '') => {
             tokenStart: _cachedToken?.substring(0, 20) + '...',
           });
         } else {
-          console.log('⚠️ [apiConfig] NO TOKEN AVAILABLE - request will be unauthenticated:', {
-            endpoint,
-            url: config.url,
-          });
+          console.log(
+            '⚠️ [apiConfig] NO TOKEN AVAILABLE - request will be unauthenticated:',
+            {
+              endpoint,
+              url: config.url,
+            },
+          );
         }
       } catch (error) {
         console.error('❌ [apiConfig] Token Fetch Error:', error);

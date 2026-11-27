@@ -12,11 +12,11 @@ import {
 } from 'react-native';
 
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import colors from '../../../../themes/colors';
-import { FontFamily, FontSize } from '../../../../themes/typography';
+import colors from '../../themes/colors';
+import { FontFamily, FontSize } from '../../themes/typography';
 
-import AppLayout from '../../../../components/AppLayout/AppLayout';
-import BackHeader from '../../../../components/BackHeader/BackHeader';
+import AppLayout from '../../components/AppLayout/AppLayout';
+import BackHeader from '../../components/BackHeader/BackHeader';
 import {
   Body,
   GreenButton,
@@ -24,10 +24,10 @@ import {
   Label,
   SearchField,
   Dropdown,
-} from '../../../../components/Formparts';
+} from '../../components/Formparts';
 import { widthPercentageToDP as wp } from 'react-native-responsive-screen';
 
-import { useExecutiveMembers } from '../../../../hooks/useOrganization';
+import { useExecutiveMembers } from '../../hooks/useOrganization';
 
 const MEMBER_TYPES = [
   'All Types',
@@ -38,15 +38,9 @@ const MEMBER_TYPES = [
 const MEMBER_STATUSES = ['All Status', 'Active', 'Suspended', 'Expired'];
 const SORT_OPTIONS = ['Recent', 'Oldest', 'Name (A-Z)'];
 
-const ExecutiveMembersScreen = ({ navigation }) => {
-  const {
-    members,
-    loading,
-    page,
-    total,
-    loadMembers,
-    deleteMember,
-  } = useExecutiveMembers();
+const ExecutiveMembersScreen = ({ navigation, route }) => {
+  const { members, loading, page, total, loadMembers, deleteMember } =
+    useExecutiveMembers();
 
   const [search, setSearch] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
@@ -54,24 +48,48 @@ const ExecutiveMembersScreen = ({ navigation }) => {
   const [hasMore, setHasMore] = useState(true);
   const searchTimerRef = useRef(null);
 
+  // Get route params for pre-filtering
+  const preFilteredMemberType = route?.params?.memberType || 'All Types';
+  const screenTitle = route?.params?.screenTitle || 'Executive Members';
+
+  // Debug log
+  React.useEffect(() => {
+    console.log('🔍 [ExecutiveMembersScreen] Route params:', {
+      memberType: route?.params?.memberType,
+      screenTitle: route?.params?.screenTitle,
+      fullParams: route?.params,
+    });
+  }, [route?.params]);
+
   // Filter states
   const [applied, setApplied] = useState({
     search: '',
-    memberType: 'All Types',
+    memberType: preFilteredMemberType,
     status: 'All Status',
     sortBy: 'Recent',
   });
 
   const [draftSearch, setDraftSearch] = useState('');
-  const [draftType, setDraftType] = useState('All Types');
+  const [draftType, setDraftType] = useState(preFilteredMemberType);
   const [draftStatus, setDraftStatus] = useState('All Status');
   const [draftSort, setDraftSort] = useState('Recent');
 
   // Load initial data
   useEffect(() => {
-    loadMembers(1, 50, '');
+    // Update applied filters when memberType from route changes
+    setApplied(prev => ({
+      ...prev,
+      memberType: preFilteredMemberType,
+    }));
+    setDraftType(preFilteredMemberType);
+    loadMembers(
+      1,
+      50,
+      '',
+      preFilteredMemberType !== 'All Types' ? preFilteredMemberType : '',
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [preFilteredMemberType]);
 
   // Check if there's more data to load
   useEffect(() => {
@@ -87,14 +105,24 @@ const ExecutiveMembersScreen = ({ navigation }) => {
     setLoadingMore(false);
     setHasMore(true);
 
-    loadMembers(1, 50, applied.search);
+    loadMembers(
+      1,
+      50,
+      applied.search,
+      applied.memberType !== 'All Types' ? applied.memberType : '',
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applied]);
 
   const handleLoadMore = useCallback(() => {
     if (hasMore && !loading && !loadingMore && members.length > 0) {
       setLoadingMore(true);
-      loadMembers(page + 1, 50, applied.search).finally(() => {
+      loadMembers(
+        page + 1,
+        50,
+        applied.search,
+        applied.memberType !== 'All Types' ? applied.memberType : '',
+      ).finally(() => {
         setLoadingMore(false);
       });
     }
@@ -110,7 +138,12 @@ const ExecutiveMembersScreen = ({ navigation }) => {
 
   const handleRefresh = useCallback(() => {
     setHasMore(true);
-    loadMembers(1, 50, applied.search);
+    loadMembers(
+      1,
+      50,
+      applied.search,
+      applied.memberType !== 'All Types' ? applied.memberType : '',
+    );
   }, [applied, loadMembers]);
 
   const handleSearchDebounce = text => {
@@ -196,29 +229,12 @@ const ExecutiveMembersScreen = ({ navigation }) => {
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={styles.cardInfo}>
-          <Text style={styles.srNo}>#{(page - 1) * 50 + index + 1}</Text>
+          <Text style={styles.srNo}>{(page - 1) * 50 + index + 1}</Text>
           <Text style={styles.nameText} numberOfLines={1}>
             {item.name}
           </Text>
         </View>
-        <View style={styles.cardActions}>
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() =>
-              navigation.navigate('AddExecutiveMembersScreen', {
-                member: item,
-              })
-            }
-          >
-            <Icon name="pencil" size={18} color={colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.deleteBtnStyle]}
-            onPress={() => handleDelete(item)}
-          >
-            <Icon name="trash-can-outline" size={18} color="#DC2626" />
-          </TouchableOpacity>
-        </View>
+        <View style={styles.cardActions}></View>
       </View>
 
       <View style={styles.divider} />
@@ -228,12 +244,6 @@ const ExecutiveMembersScreen = ({ navigation }) => {
           <Text style={styles.label}>Member ID</Text>
           <Text style={styles.value} numberOfLines={1}>
             {item.memberId || '-'}
-          </Text>
-        </View>
-        <View style={styles.infoItem}>
-          <Text style={styles.label}>Member Type</Text>
-          <Text style={styles.value} numberOfLines={1}>
-            {item.memberType || '-'}
           </Text>
         </View>
       </View>
@@ -284,7 +294,7 @@ const ExecutiveMembersScreen = ({ navigation }) => {
       <View style={styles.container}>
         <BackHeader
           navigation={navigation}
-          title="Executive Members"
+          title={screenTitle}
           onBack={() => navigation && navigation.goBack()}
         />
 
@@ -333,7 +343,7 @@ const ExecutiveMembersScreen = ({ navigation }) => {
                           />
                         </View>
 
-                        <TouchableOpacity
+                        {/* <TouchableOpacity
                           style={styles.filterButton}
                           activeOpacity={0.8}
                           onPress={openFilter}
@@ -346,7 +356,7 @@ const ExecutiveMembersScreen = ({ navigation }) => {
                           {hasActiveFilters && (
                             <View style={styles.filterBadgeDot} />
                           )}
-                        </TouchableOpacity>
+                        </TouchableOpacity> */}
                       </View>
                     </View>
                   }
@@ -368,15 +378,6 @@ const ExecutiveMembersScreen = ({ navigation }) => {
                 />
 
                 {/* Bottom Add Button */}
-                <View style={styles.bottomBar}>
-                  <GreenButton
-                    title="+ Add Member"
-                    onPress={() =>
-                      navigation.navigate('AddExecutiveMembersScreen')
-                    }
-                    style={styles.addBtn}
-                  />
-                </View>
               </>
             )}
           </Body>

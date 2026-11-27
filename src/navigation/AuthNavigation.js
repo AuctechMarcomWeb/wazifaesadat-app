@@ -33,24 +33,16 @@ import Addfardehisaabscreen from '../Screens/Common/Collection/Fardehisaabscreen
 import IncomeExpenditureSummaryScreen from '../Screens/Common/Collection/Fardehisaabscreen/IncomeExpenditureSummaryScreen/IncomeExpenditureSummaryScreen';
 import AddIncomeExpenditureSummaryScreen from '../Screens/Common/Collection/Fardehisaabscreen/IncomeExpenditureSummaryScreen/IncomeExpenditureModal';
 import PostsScreen from '../Screens/Common/PostsScreen/MainScreen/MainScreen';
-import WazifaApplicationsScreen from '../Screens/Common/Wafizedar/WazifaApplicationsScreen/WazifaApplicationsScreen/WazifaApplicationsScreen';
-import WazifaApplicationSubmittedScreen from '../Screens/Common/Wafizedar/WazifaApplicationsScreen/WazifaApplicationSubmittedScreen/WazifaApplicationSubmittedScreen';
-import AddWazifaApplicationScreen from '../Screens/Common/Wafizedar/WazifaApplicationsScreen/EditWazifaApplicationScreen/EditWazifaApplicationScreen';
-import VerifyWazifaListScreen from '../Screens/Common/Wafizedar/VerifyWazifaListScreen/VerifyWazifaListScreen';
-import RecentTransactionsScreen from '../Screens/Common/Wafizedar/RecentTransactionsScreen/RecentTransactionsScreen';
-import WazifaDueReportScreen from '../Screens/Common/Wafizedar/WazifaDueReportScreen/WazifaDueReportScreen';
-import LedgerOfWazifadarScreen from '../Screens/Common/Wafizedar/LedgerOfWazifadarScreen/LedgerOfWazifadarScreen';
-import EditProfileScreen from '../Screens/Common/EditProfileScreen/EditProfileScreen';
+import WazifaApplicationsScreen from '../Screens/WazifaApplicationsScreen/WazifaApplicationsScreen';
+import EditProfileScreen from '../Screens/EditProfileScreen/EditProfileScreen';
 import MembershipScreen from '../Screens/Common/MembersList/MembershipScreen/MembershipScreen';
 import AddMembershipApplicationScreen from '../Screens/Common/MembersList/MembershipScreen/AddMembershipApplicationScreen';
 import UserManagementScreen from '../Screens/Common/UserManagementScreen/UserManagementScreen';
 import AddUserScreen from '../Screens/Common/UserManagementScreen/AddUserScreen';
 // import AddStaffScreen from '../Screens/Common/UserManagementScreen/UserManagementScreen';
-import MembershipListScreen from '../Screens/Common/MembersList/MembersListScreen/MemberListScreen';
-import OfficeBearerMasterScreen from '../Screens/OfficeBearerScreen/OfficeBearerScreen';
-import AddOfficeBearerScreen from '../Screens/OfficeBearerScreen/AddOfficeBearerScreen';
-import ExecutiveMembersScreen from '../Screens/Common/OrganizationStructure/ExecutiveMembersScreen/ExecutiveMembersScreen';
-import AddExecutiveMembersScreen from '../Screens/Common/OrganizationStructure/ExecutiveMembersScreen/AddExecutiveMembersScreen';
+import MembershipListScreen from '../Screens/MembersListScreen/MemberListScreen';
+import OfficeBearerScreen from '../Screens/OfficeBearerScreen/OfficeBearerScreen';
+import ExecutiveMembersScreen from '../Screens/ExecutiveMembersScreen/ExecutiveMembersScreen';
 import LocalSecretariesScreen from '../Screens/Common/OrganizationStructure/LocalSecretariesScreen/LocalSecretariesScreen';
 import AddLocalSecretaryScreen from '../Screens/Common/OrganizationStructure/LocalSecretariesScreen/AddLocalSecretaryScreen';
 import UserAccessManagementScreen from '../Screens/Common/UserAccessManagementScreen/UserAccessManagementScreen';
@@ -89,6 +81,7 @@ import JobsCareerScreen from '../Screens/Jobs-Career/JobsCareerScreen';
 import JobsCareerDetails from '../Screens/Jobs-Career/JobsCareerDetails';
 import AppealDetails from '../Screens/Appeal/AppealDetails';
 import AppealScreen from '../Screens/Appeal/AppealScreen';
+import DonationAppealsScreen from '../Screens/DonationAppealsScreen/DonationAppealsScreen';
 
 import DonationsScreen from '../Screens/Donation/DonationScreen';
 import DonationDetailsScreen from '../Screens/Donation/DonationDetailsScreen';
@@ -366,59 +359,6 @@ const MainDrawer = () => {
       />
 
       <Drawer.Screen
-        name="WazifaApplicationSubmittedScreen"
-        component={WazifaApplicationSubmittedScreen}
-        options={{
-          title: 'WazifaApplicationSubmitted Screen',
-          drawerItemStyle: { display: 'none' },
-        }}
-      />
-
-      <Drawer.Screen
-        name="AddWazifaApplicationScreen"
-        component={AddWazifaApplicationScreen}
-        options={{
-          title: 'AddWazifaApplication Screen',
-          drawerItemStyle: { display: 'none' },
-        }}
-      />
-
-      <Drawer.Screen
-        name="VerifyWazifaListScreen"
-        component={VerifyWazifaListScreen}
-        options={{
-          title: 'VerifyWazifaList Screen',
-          drawerItemStyle: { display: 'none' },
-        }}
-      />
-
-      <Drawer.Screen
-        name="RecentTransactionsScreen"
-        component={RecentTransactionsScreen}
-        options={{
-          title: 'RecentTransactions Screen',
-          drawerItemStyle: { display: 'none' },
-        }}
-      />
-
-      <Drawer.Screen
-        name="LedgerOfWazifadarScreen"
-        component={LedgerOfWazifadarScreen}
-        options={{
-          title: 'LedgerOfWazifadar Screen',
-          drawerItemStyle: { display: 'none' },
-        }}
-      />
-
-      <Drawer.Screen
-        name="WazifaDueReportScreen"
-        component={WazifaDueReportScreen}
-        options={{
-          title: 'WazifaDueReport Screen',
-          drawerItemStyle: { display: 'none' },
-        }}
-      />
-      <Drawer.Screen
         name="BlogsScreen"
         component={BlogsScreen}
         options={{
@@ -434,8 +374,6 @@ const MainDrawer = () => {
           drawerItemStyle: { display: 'none' },
         }}
       />
-
-      
 
       <Drawer.Screen
         name="MembershipScreen"
@@ -465,19 +403,10 @@ const MainDrawer = () => {
       />
 
       <Drawer.Screen
-        name="OfficeBearerMasterScreen"
-        component={OfficeBearerMasterScreen}
+        name="OfficeBearerScreen"
+        component={OfficeBearerScreen}
         options={{
-          title: 'OfficeBearerMaster Screen',
-          drawerItemStyle: { display: 'none' },
-        }}
-      />
-
-      <Drawer.Screen
-        name="AddOfficeBearerScreen"
-        component={AddOfficeBearerScreen}
-        options={{
-          title: 'AddOfficeBearer Screen',
+          title: 'OfficeBearer Screen ',
           drawerItemStyle: { display: 'none' },
         }}
       />
@@ -813,6 +742,16 @@ const MainDrawer = () => {
           drawerItemStyle: { display: 'none' },
         }}
       />
+
+      <Drawer.Screen
+        name="DonationAppealsScreen"
+        component={DonationAppealsScreen}
+        options={{
+          title: 'DonationAppealsScreen',
+          drawerItemStyle: { display: 'none' },
+        }}
+      />
+
       <Drawer.Screen
         name="BlogsDetails"
         component={BlogsDetails}
@@ -978,16 +917,16 @@ const AuthNavigation = () => {
       <Stack.Screen name="EventDetails" component={EventDetails} />
 
       <Stack.Screen name="DonationsScreen" component={DonationsScreen} />
-      <Stack.Screen name="DonationDetailsScreen" component={DonationDetailsScreen} />
-
-
+      <Stack.Screen
+        name="DonationDetailsScreen"
+        component={DonationDetailsScreen}
+      />
 
       {/* Jobs & Career */}
       <Stack.Screen name="JobsCareerScreen" component={JobsCareerScreen} />
       <Stack.Screen name="JobsCareerDetails" component={JobsCareerDetails} />
 
       <Stack.Screen name="DonationFormScreen" component={DonationFormScreen} />
-
 
       {/* Appeals */}
       <Stack.Screen name="AppealScreen" component={AppealScreen} />
@@ -998,32 +937,8 @@ const AuthNavigation = () => {
         name="WazifaApplicationsScreen"
         component={WazifaApplicationsScreen}
       />
-      <Stack.Screen
-        name="WazifaApplicationSubmittedScreen"
-        component={WazifaApplicationSubmittedScreen}
-      />
-      <Stack.Screen
-        name="AddWazifaApplicationScreen"
-        component={AddWazifaApplicationScreen}
-      />
-      <Stack.Screen name="NotificationScreen" component={NotificationScreen} />
 
-      <Stack.Screen
-        name="VerifyWazifaListScreen"
-        component={VerifyWazifaListScreen}
-      />
-      <Stack.Screen
-        name="RecentTransactionsScreen"
-        component={RecentTransactionsScreen}
-      />
-      <Stack.Screen
-        name="WazifaDueReportScreen"
-        component={WazifaDueReportScreen}
-      />
-      <Stack.Screen
-        name="LedgerOfWazifadarScreen"
-        component={LedgerOfWazifadarScreen}
-      />
+      <Stack.Screen name="NotificationScreen" component={NotificationScreen} />
 
       {/* Membership */}
       <Stack.Screen name="MembershipScreen" component={MembershipScreen} />
@@ -1039,20 +954,14 @@ const AuthNavigation = () => {
       {/* Organization */}
       <Stack.Screen
         name="OfficeBearerMasterScreen"
-        component={OfficeBearerMasterScreen}
+        component={OfficeBearerScreen}
       />
-      <Stack.Screen
-        name="AddOfficeBearerScreen"
-        component={AddOfficeBearerScreen}
-      />
+
       <Stack.Screen
         name="ExecutiveMembersScreen"
         component={ExecutiveMembersScreen}
       />
-      <Stack.Screen
-        name="AddExecutiveMembersScreen"
-        component={AddExecutiveMembersScreen}
-      />
+
       <Stack.Screen
         name="LocalSecretariesScreen"
         component={LocalSecretariesScreen}
@@ -1091,6 +1000,12 @@ const AuthNavigation = () => {
         name="AddPaymentModeScreen"
         component={AddPaymentModeScreen}
       />
+
+      <Stack.Screen
+        name="DonationAppealsScreen"
+        component={DonationAppealsScreen}
+      />
+
       <Stack.Screen name="BankScreen" component={BankScreen} />
       <Stack.Screen name="AddBankScreen" component={AddBankScreen} />
       <Stack.Screen name="FundTypeScreen" component={FundTypeScreen} />
