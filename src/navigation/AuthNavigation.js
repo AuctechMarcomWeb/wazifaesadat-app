@@ -87,6 +87,9 @@ import DonationsScreen from '../Screens/Donation/DonationScreen';
 import DonationDetailsScreen from '../Screens/Donation/DonationDetailsScreen';
 import DonationFormScreen from '../Screens/Donation/DonationFormScreen';
 
+import ScholarshipFormView from '../Screens/ScholarshipScreen/ScholarshipFormView';
+
+
 // Message details screen
 import MessageDetailsScreen from '../Screens/Common/Messagingscreen/MessageDetailsScreen';
 
@@ -865,6 +868,8 @@ const AuthNavigation = () => {
       <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
 
       <Stack.Screen name="SettingScreen" component={SettingsScreen} />
+            <Stack.Screen name="ScholarshipFormView" component={ScholarshipFormView} />
+
 
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
       <Stack.Screen name="TermsConditions" component={TermsConditionsScreen} />

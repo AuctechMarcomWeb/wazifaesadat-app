@@ -5,9 +5,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // export const BASE_URL = 'https://api.wazifaesadat.org/api';
 export const BASE_URL = 'http://192.168.1.9:9004/api';
 
-// Base URL without /api suffix (for PayU and other raw endpoints)
-export const BASE_URL_ROOT = BASE_URL.replace('/api', '');
-
 // Jobs API URL
 export const JOBS_BASE_URL = 'https://jobsapi.wazifaesadat.org/api';
 
@@ -66,13 +63,21 @@ export const createAxiosInstance = (endpoint = '') => {
           });
         }
 
-        if (_cachedToken) {
+        // If Authorization header already set by caller, preserve it
+        // Otherwise use cached token
+        if (!config.headers.Authorization && _cachedToken) {
           config.headers.Authorization = `Bearer ${_cachedToken}`;
-          console.log('✅ [apiConfig] Auth token ATTACHED:', {
+          console.log('✅ [apiConfig] Cached token ATTACHED:', {
             endpoint,
             url: config.url,
             tokenLength: _cachedToken?.length,
             tokenStart: _cachedToken?.substring(0, 20) + '...',
+          });
+        } else if (config.headers.Authorization) {
+          console.log('✅ [apiConfig] Using provided Authorization header:', {
+            endpoint,
+            url: config.url,
+            tokenStart: config.headers.Authorization.substring(0, 30) + '...',
           });
         } else {
           console.log(

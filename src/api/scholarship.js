@@ -8,17 +8,82 @@ import { createAxiosInstance } from './apiConfig';
 const api = createAxiosInstance('');
 
 // ================================================================
+// WAZIFA USER AUTHENTICATION API
+// ================================================================
+
+/**
+ * Wazifa User Login
+ * POST /scholarshipForm/wazifa-login
+ *
+ * @param {Object} credentials
+ * @param {string} credentials.contactNo
+ * @param {string} credentials.dateOfBirth
+ */
+
+export const wazifaLogin = async ({ contactNo, dateOfBirth }) => {
+  try {
+    const response = await api.post('scholarshipForm/wazifa-login', {
+      contactNo,
+      dateOfBirth,
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('Wazifa Login Error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Get Logged-in Wazifa User Scholarship Form
+ * GET /scholarshipForm/my-form
+ *
+ * Requires Bearer Token in header
+ * @param {string} authToken
+ * @param {string} accountNo - Account number to pass in custom header
+ */
+
+export const getMyScholarshipForm = async (authToken, accountNo) => {
+  try {
+    console.log('API Call: getMyScholarshipForm', {
+      tokenExists: !!authToken,
+      accountNo,
+    });
+
+    const config = {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+    };
+
+    // Add account number as custom header
+    if (accountNo) {
+      config.headers['X-Account-No'] = accountNo;
+      console.log('Added X-Account-No header:', accountNo);
+    }
+
+    const response = await api.get('scholarshipForm/my-form', config);
+
+    console.log('API Response received:', response.status);
+    return response.data;
+  } catch (error) {
+    console.error('Get My Scholarship Form Error:', {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message,
+    });
+    throw error;
+  }
+};
+
+// ================================================================
 // SCHOLARSHIP DATE API
 // ================================================================
 
 /**
  * Fetch scholarship dates with pagination and filtering
- * @param {number} page - Page number (default: 1)
- * @param {number} limit - Records per page (default: 50)
- * @param {string} search - Search term (optional)
- * @param {boolean} isActive - Filter by active status (optional)
- * @returns {Promise} Scholarship dates data
  */
+
 export const getScholarshipDates = async (
   page = 1,
   limit = 50,
@@ -31,6 +96,7 @@ export const getScholarshipDates = async (
         search ? `&search=${encodeURIComponent(search)}` : ''
       }${isActive !== undefined ? `&isActive=${isActive}` : ''}`,
     );
+
     return response.data?.data || {};
   } catch (error) {
     console.error('Error fetching scholarship dates:', error);
@@ -40,17 +106,19 @@ export const getScholarshipDates = async (
 
 /**
  * Fetch scholarship dates by category
- * @param {string} category - Category name (e.g., 'Junior', 'Senior')
- * @param {boolean} isActive - Filter by active status
- * @returns {Promise} Filtered scholarship dates
  */
-export const getScholarshipDatesByCategory = async (category, isActive = true) => {
+
+export const getScholarshipDatesByCategory = async (
+  category,
+  isActive = true,
+) => {
   try {
     const response = await api.get(
       `scholarship-date?category=${encodeURIComponent(category)}${
         isActive !== undefined ? `&isActive=${isActive}` : ''
       }`,
     );
+
     return response.data?.data || {};
   } catch (error) {
     console.error('Error fetching scholarship dates by category:', error);
@@ -60,15 +128,9 @@ export const getScholarshipDatesByCategory = async (category, isActive = true) =
 
 /**
  * Create a new scholarship date
- * @param {Object} data - Scholarship date data
- * @param {string} data.category - Category (Junior, Senior, etc.)
- * @param {string} data.startDate - Start date (YYYY-MM-DD format)
- * @param {string} data.endDate - End date (YYYY-MM-DD format)
- * @param {string} data.remarks - Remarks/Notes
- * @param {boolean} data.isActive - Active status
- * @returns {Promise} Created scholarship date object
  */
-export const createScholarshipDate = async (data) => {
+
+export const createScholarshipDate = async data => {
   try {
     const response = await api.post('scholarship-date', data);
     return response.data;
@@ -80,10 +142,8 @@ export const createScholarshipDate = async (data) => {
 
 /**
  * Update an existing scholarship date
- * @param {string} id - Scholarship date ID
- * @param {Object} data - Updated data
- * @returns {Promise} Updated scholarship date object
  */
+
 export const updateScholarshipDate = async (id, data) => {
   try {
     const response = await api.patch(`scholarship-date/${id}`, data);
@@ -96,10 +156,9 @@ export const updateScholarshipDate = async (id, data) => {
 
 /**
  * Delete a scholarship date
- * @param {string} id - Scholarship date ID
- * @returns {Promise} Delete response
  */
-export const deleteScholarshipDate = async (id) => {
+
+export const deleteScholarshipDate = async id => {
   try {
     const response = await api.delete(`scholarship-date/${id}`);
     return response.data;
@@ -114,13 +173,9 @@ export const deleteScholarshipDate = async (id) => {
 // ================================================================
 
 /**
- * Fetch scholarship rates (course with rates) with pagination
- * @param {number} page - Page number (default: 1)
- * @param {number} limit - Records per page (default: 50)
- * @param {string} search - Search term (optional)
- * @param {boolean} isActive - Filter by active status (optional)
- * @returns {Promise} Scholarship rates data
+ * Fetch scholarship rates with pagination
  */
+
 export const getScholarshipRates = async (
   page = 1,
   limit = 50,
@@ -133,6 +188,7 @@ export const getScholarshipRates = async (
         search ? `&search=${encodeURIComponent(search)}` : ''
       }${isActive !== undefined ? `&isActive=${isActive}` : ''}`,
     );
+
     return response.data?.data || {};
   } catch (error) {
     console.error('Error fetching scholarship rates:', error);
@@ -142,10 +198,9 @@ export const getScholarshipRates = async (
 
 /**
  * Fetch a single scholarship rate by ID
- * @param {string} id - Scholarship rate ID
- * @returns {Promise} Scholarship rate object
  */
-export const getScholarshipRateById = async (id) => {
+
+export const getScholarshipRateById = async id => {
   try {
     const response = await api.get(`course-with-rates/${id}`);
     return response.data?.data || {};
@@ -157,14 +212,9 @@ export const getScholarshipRateById = async (id) => {
 
 /**
  * Create a new scholarship rate
- * @param {Object} data - Scholarship rate data
- * @param {string} data.courseName - Course name
- * @param {number} data.rate - Scholarship rate
- * @param {string} data.remarks - Remarks/Notes
- * @param {boolean} data.isActive - Active status
- * @returns {Promise} Created scholarship rate object
  */
-export const createScholarshipRate = async (data) => {
+
+export const createScholarshipRate = async data => {
   try {
     const response = await api.post('course-with-rates', data);
     return response.data;
@@ -176,10 +226,8 @@ export const createScholarshipRate = async (data) => {
 
 /**
  * Update an existing scholarship rate
- * @param {string} id - Scholarship rate ID
- * @param {Object} data - Updated data
- * @returns {Promise} Updated scholarship rate object
  */
+
 export const updateScholarshipRate = async (id, data) => {
   try {
     const response = await api.put(`course-with-rates/${id}`, data);
@@ -192,15 +240,42 @@ export const updateScholarshipRate = async (id, data) => {
 
 /**
  * Delete a scholarship rate
- * @param {string} id - Scholarship rate ID
- * @returns {Promise} Delete response
  */
-export const deleteScholarshipRate = async (id) => {
+
+export const deleteScholarshipRate = async id => {
   try {
     const response = await api.delete(`course-with-rates/${id}`);
     return response.data;
   } catch (error) {
     console.error('Error deleting scholarship rate:', error);
+    throw error;
+  }
+};
+
+// ================================================================
+// TENURE YEAR API
+// ================================================================
+
+/**
+ * Fetch tenure years with pagination and filtering
+ */
+
+export const getTenureYears = async (
+  page = 1,
+  limit = 50,
+  search = '',
+  isActive = true,
+) => {
+  try {
+    const response = await api.get(
+      `tenure-year?page=${page}&limit=${limit}&sortBy=recent${
+        search ? `&search=${encodeURIComponent(search)}` : ''
+      }${isActive !== undefined ? `&isActive=${isActive}` : ''}`,
+    );
+
+    return response.data?.data || {};
+  } catch (error) {
+    console.error('Error fetching tenure years:', error);
     throw error;
   }
 };
