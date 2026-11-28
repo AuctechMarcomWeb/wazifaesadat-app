@@ -8,65 +8,59 @@ export const MENU_CONFIG = {
   },
 
   // Community Feed Items
-  Post: {
-    label: 'Post',
-    icon: 'file-document',
-    modules: ['community_post'],
-    params: { contentType: 'Post' },
-  },
+  // Post: {
+  //   label: 'Post',
+  //   icon: 'file-document',
+  //   modules: ['community_post'],
+  //   params: { contentType: 'Post' },
+  // },
 
-  Blogs: {
-    label: 'Blogs',
-    icon: 'book-open-variant',
-    modules: ['community_blog'],
-    screenName: 'BlogsScreen',
-    params: { contentType: 'Blogs' },
-  },
+  // Blogs: {
+  //   label: 'Blogs',
+  //   icon: 'book-open-variant',
+  //   modules: ['community_blog'],
+  //   screenName: 'BlogsScreen',
+  //   params: { contentType: 'Blogs' },
+  // },
 
-  News: {
-    label: 'News',
-    icon: 'newspaper',
-    modules: ['community_news'],
-    params: { contentType: 'News' },
-  },
+  // News: {
+  //   label: 'News',
+  //   icon: 'newspaper',
+  //   modules: ['community_news'],
+  //   params: { contentType: 'News' },
+  // },
 
-  Events: {
-    label: 'Events',
-    icon: 'calendar-event',
-    modules: ['community_event'],
-    params: { contentType: 'Events' },
-  },
+  // Events: {
+  //   label: 'Events',
+  //   icon: 'calendar-event',
+  //   modules: ['community_event'],
+  //   params: { contentType: 'Events' },
+  // },
 
-  Appeal: {
-    label: 'Appeal',
-    icon: 'megaphone',
-    modules: ['community_appeal'],
-    screenName: 'AppealScreen',
-    params: { contentType: 'Appeal' },
-  },
+  // Appeal: {
+  //   label: 'Appeal',
+  //   icon: 'megaphone',
+  //   modules: ['community_appeal'],
+  //   screenName: 'AppealScreen',
+  //   params: { contentType: 'Appeal' },
+  // },
 
-  Donation: {
-    label: 'Donation',
-    icon: 'hand-heart',
-    modules: ['community_donation'],
-    screenName: 'DonationsScreen',
-    params: { contentType: 'Donation' },
-  },
+  // Donation: {
+  //   label: 'Donation',
+  //   icon: 'hand-heart',
+  //   modules: ['community_donation'],
+  //   screenName: 'DonationsScreen',
+  //   params: { contentType: 'Donation' },
+  // },
 
-  Scholarship: {
-    label: 'Scholarship',
-    icon: 'book-education',
-    modules: ['scholarship'],
-    screenName: 'ScholarshipScreen',
-  },
+  // Scholarship: {
+  //   label: 'Scholarship',
+  //   icon: 'book-education',
+  //   modules: ['scholarship'],
+  //   screenName: 'ScholarshipScreen',
+  // },
 
-  JobsCareer: {
-    label: 'Jobs & Career',
-    icon: 'briefcase-search',
-    modules: ['community_job', 'community_career'],
-    screenName: 'JobsCareerScreen',
-    params: { contentType: 'JobsCareer' },
-  },
+
 
   OfficeBearers: {
     label: 'Office Bearers',
@@ -75,51 +69,7 @@ export const MENU_CONFIG = {
     screenName: 'OfficeBearerScreen',
   },
 
-  Members: {
-    label: 'Members',
-    icon: 'account-group',
-    children: [
-      {
-        key: 'UmoomiMember',
-        label: 'Umoomi Member',
-        modules: ['umoomi_member'],
-        screenName: 'MembershipListScreen',
-        params: {
-          memberType: 'Ordinary Member',
-          screenTitle: 'Umoomi Member (Ordinary)',
-        },
-      },
-      {
-        key: 'DawamiMember',
-        label: 'Dawami Member',
-        modules: ['dawami_member'],
-        screenName: 'MembershipListScreen',
-        params: {
-          memberType: 'Dawami Member',
-          screenTitle: 'Dawami Member',
-        },
-      },
-      {
-        key: 'LifeMember',
-        label: 'Life Member',
-        modules: ['life_member'],
-        screenName: 'MembershipListScreen',
-        params: {
-          memberType: 'Life Member',
-          screenTitle: 'Life Member',
-        },
-      },
-    ],
-  },
-
-  Wazifadar: {
-    label: 'Wazifadar',
-    icon: 'account-school',
-    modules: ['wazifadar'],
-    screenName: 'WazifaApplicationsScreen',
-  },
-
-  Executive: {
+    Executive: {
     label: 'Executive',
     icon: 'account-star',
     children: [
@@ -165,6 +115,58 @@ export const MENU_CONFIG = {
       },
     ],
   },
+
+  Members: {
+    label: 'Members',
+    icon: 'account-group',
+    children: [
+      {
+        key: 'UmoomiMember',
+        label: 'Umoomi Member',
+        modules: ['umoomi_member'],
+        screenName: 'MembershipListScreen',
+        params: {
+          memberType: 'Ordinary Member',
+          screenTitle: 'Umoomi Member (Ordinary)',
+        },
+      },
+      {
+        key: 'DawamiMember',
+        label: 'Dawami Member',
+        modules: ['dawami_member'],
+        screenName: 'MembershipListScreen',
+        params: {
+          memberType: 'Dawami Member',
+          screenTitle: 'Dawami Member',
+        },
+      },
+      {
+        key: 'LifeMember',
+        label: 'Life Member',
+        modules: ['life_member'],
+        screenName: 'MembershipListScreen',
+        params: {
+          memberType: 'Life Member',
+          screenTitle: 'Life Member',
+        },
+      },
+    ],
+  },
+
+  Wazifadar: {
+    label: 'Wazifadar',
+    icon: 'account-school',
+    modules: ['wazifadar'],
+    screenName: 'WazifaApplicationsScreen',
+  },
+  JobsCareer: {
+    label: 'Jobs & Career',
+    icon: 'briefcase-search',
+    modules: ['community_job', 'community_career'],
+    screenName: 'JobsCareerScreen',
+    params: { contentType: 'JobsCareer' },
+  }
+,
 };
 
 export const ROLE_MENUS = {

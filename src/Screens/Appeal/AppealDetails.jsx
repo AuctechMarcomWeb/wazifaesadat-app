@@ -12,14 +12,22 @@ import {
   useWindowDimensions,
   Clipboard,
   Alert,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { shareNewsEvent } from '../../api/AllTabsApi';
+import { initiateAppealDonation } from '../../api/Appeals';
 import { BASE_URL } from '../../api/apiConfig';
 import BackHeader from '../../components/BackHeader/BackHeader';
 import colors from '../../themes/colors';
 import AppLayout from '../../components/AppLayout/AppLayout';
+import PayUCheckout from '../../components/Payments/PayUCheckout';
+
+const QUICK_AMOUNTS = [500, 1000, 2000, 5000];
 
 const getShareUrl = appealId => {
   if (!appealId) return '';
@@ -71,14 +79,54 @@ const AppealDetails = ({ route, navigation }) => {
   const [loading, setLoading] = useState(!initialAppeal);
   const [isSharing, setIsSharing] = useState(false);
   const [copiedNumber, setCopiedNumber] = useState(false);
+  const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
+  const [amountModalVisible, setAmountModalVisible] = useState(false);
+  const [donationAmountInput, setDonationAmountInput] = useState('');
 
   useEffect(() => {
+    if (initialAppeal) {
+      setAppeal(initialAppeal);
+    }
     if (!initialAppeal && appealId) {
       setLoading(false);
     }
   }, [appealId, initialAppeal]);
 
   const payNowNumber = getPayNowNumber(appeal);
+
+  const { openPayment: openPayuCheckout } = PayUCheckout({
+    backendUrl: BASE_URL,
+    onSuccess: event => {
+      console.log('✅ [PayU] Appeal Payment Success:', event);
+      setIsPaymentProcessing(false);
+      Alert.alert('Success', 'Payment completed successfully!', [
+        { text: 'OK', onPress: () => navigation?.goBack() },
+      ]);
+    },
+    onFailure: event => {
+      console.log('❌ [PayU] Appeal Payment Failure:', event);
+      setIsPaymentProcessing(false);
+      Alert.alert(
+        'Payment Failed',
+        'Payment was unsuccessful. Please try again.',
+        [{ text: 'OK', onPress: () => {} }],
+      );
+    },
+    onCancel: () => {
+      console.log('⚠️ [PayU] Appeal Payment Cancelled');
+      setIsPaymentProcessing(false);
+      Alert.alert('Cancelled', 'Payment was cancelled by user.', [
+        { text: 'OK', onPress: () => {} },
+      ]);
+    },
+    onError: error => {
+      console.log('⚠️ [PayU] Appeal Payment Error:', error);
+      setIsPaymentProcessing(false);
+      Alert.alert('Error', 'Unable to process payment. Please try again.', [
+        { text: 'OK', onPress: () => {} },
+      ]);
+    },
+  });
 
   const handleShare = async () => {
     const id = appeal?._id || appeal?.id || appealId;
@@ -136,42 +184,79 @@ const AppealDetails = ({ route, navigation }) => {
     );
   };
 
-  const handlePayNow = () => {
-    if (payNowNumber) {
-      const encodedName = encodeURIComponent(
-        appeal?.title || 'Appeal Donation',
-      );
-      const upiUrl = `upi://pay?pa=${encodeURIComponent(
-        payNowNumber,
-      )}&pn=${encodedName}&cu=INR`;
+  const handleOpenAmountModal = () => {
+    if (isPaymentProcessing) return;
+    setDonationAmountInput('');
+    setAmountModalVisible(true);
+  };
 
-      Linking.openURL(upiUrl).catch(() => {
-        const cleanNum = payNowNumber.replace(/[^+\d]/g, '');
-        if (cleanNum) {
-          Linking.openURL(`tel:${cleanNum}`).catch(() => {
-            Clipboard.setString(payNowNumber);
-            Alert.alert(
-              'Pay Now Number',
-              `${payNowNumber} copied to clipboard.`,
-            );
-          });
-        } else {
-          Clipboard.setString(payNowNumber);
-          Alert.alert('Pay Now', `${payNowNumber} copied to clipboard.`);
-        }
+  const handleConfirmDonationAmount = async () => {
+    const numericAmount = Number(donationAmountInput);
+    if (
+      !donationAmountInput.trim() ||
+      Number.isNaN(numericAmount) ||
+      numericAmount <= 0
+    ) {
+      Alert.alert('Invalid Amount', 'Please enter a valid amount');
+      return;
+    }
+
+    const targetAppealId = appeal?._id || appeal?.id || appealId;
+    if (!targetAppealId) {
+      Alert.alert('Error', 'Appeal ID not found');
+      return;
+    }
+
+    setAmountModalVisible(false);
+    setIsPaymentProcessing(true);
+
+    try {
+      const payload = {
+        amount: numericAmount,
+        donorName: 'Anonymous Donor',
+        donorEmail: 'donor@wazifaesadat.org',
+        donorPhone: '9999999999',
+      };
+
+      console.log('💳 [PayU] Calling initiateAppealDonation:', {
+        appealId: targetAppealId,
+        payload,
       });
-      return;
-    }
 
-    if (appeal?.donateLink) {
-      handleDonate();
-      return;
-    }
+      const res = await initiateAppealDonation(targetAppealId, payload);
+      console.log('💳 [PayU] initiateAppealDonation response:', res);
 
-    Alert.alert(
-      'Payment Details',
-      'Pay Now number or payment link is not available for this appeal yet.',
-    );
+      if (res?.success && res?.data?.paymentData) {
+        const pData = res.data.paymentData;
+        const payuParams = {
+          ...pData,
+          key: pData.key,
+          transactionId: pData.transactionId || pData.txnid,
+          amount: pData.amount,
+          productInfo: pData.productInfo || pData.productinfo,
+          firstName: pData.firstName || pData.firstname,
+          email: pData.email,
+          phone: pData.phone || '',
+          android_surl: pData.android_surl || pData.surl || '',
+          android_furl: pData.android_furl || pData.furl || '',
+          ios_surl: pData.ios_surl || pData.surl || '',
+          ios_furl: pData.ios_furl || pData.furl || '',
+        };
+
+        console.log('💳 [PayU] Opening checkout with params:', payuParams);
+        openPayuCheckout(payuParams);
+      } else {
+        setIsPaymentProcessing(false);
+        Alert.alert(
+          'Error',
+          res?.message || 'Could not initiate PayU donation.',
+        );
+      }
+    } catch (err) {
+      console.error('❌ [PayU] Exception:', err);
+      setIsPaymentProcessing(false);
+      Alert.alert('Error', err?.message || 'Payment initiation failed.');
+    }
   };
 
   if (loading) {
@@ -242,26 +327,6 @@ const AppealDetails = ({ route, navigation }) => {
                 )}
                 <Text style={styles.appealTitle}>{appeal?.title}</Text>
               </View>
-
-              {/* <TouchableOpacity
-                style={[styles.shareBtn, isSharing && styles.sharingBtn]}
-                onPress={handleShare}
-                disabled={isSharing}
-                activeOpacity={0.75}
-              >
-                {isSharing ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={colors.primary || '#167A43'}
-                  />
-                ) : (
-                  <MaterialCommunityIcons
-                    name="share-variant"
-                    size={20}
-                    color={colors.primary || '#167A43'}
-                  />
-                )}
-              </TouchableOpacity> */}
             </View>
 
             {!!appeal?.status && (
@@ -404,12 +469,26 @@ const AppealDetails = ({ route, navigation }) => {
           )}
 
           <TouchableOpacity
-            style={styles.payNowBtn}
-            onPress={handlePayNow}
+            style={[
+              styles.payNowBtn,
+              isPaymentProcessing && styles.buttonDisabled,
+            ]}
+            onPress={handleOpenAmountModal}
             activeOpacity={0.85}
+            disabled={isPaymentProcessing}
           >
-            <MaterialCommunityIcons name="flash" size={20} color="#FFFFFF" />
-            <Text style={styles.payNowBtnText}>Pay Now</Text>
+            {isPaymentProcessing ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <MaterialCommunityIcons
+                  name="flash"
+                  size={20}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.payNowBtnText}>Pay Now</Text>
+              </>
+            )}
           </TouchableOpacity>
 
           {!!appeal?.donateLink && (
@@ -422,21 +501,92 @@ const AppealDetails = ({ route, navigation }) => {
               <Text style={styles.donateBtnText}>Donate Now</Text>
             </TouchableOpacity>
           )}
-
-          {/* <TouchableOpacity
-            style={[styles.shareFullBtn, isSharing && styles.sharingBtn]}
-            onPress={handleShare}
-            disabled={isSharing}
-            activeOpacity={0.8}
-          >
-            <MaterialCommunityIcons
-              name="share-variant"
-              size={18}
-              color={colors.primary || '#167A43'}
-            />
-            <Text style={styles.shareFullBtnText}>Share Appeal</Text>
-          </TouchableOpacity> */}
         </ScrollView>
+
+        <Modal
+          visible={amountModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setAmountModalVisible(false)}
+        >
+          <KeyboardAvoidingView
+            style={styles.modalBackdrop}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Donation Amount</Text>
+                <TouchableOpacity
+                  onPress={() => setAmountModalVisible(false)}
+                  hitSlop={10}
+                >
+                  <Ionicons name="close" size={22} color="#374151" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.modalSubtitle}>
+                Enter amount to donate (₹)
+              </Text>
+
+              <View style={styles.modalInputWrap}>
+                <Text style={styles.modalRupee}>₹</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="0"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="numeric"
+                  value={donationAmountInput}
+                  onChangeText={setDonationAmountInput}
+                  autoFocus
+                />
+              </View>
+
+              <View style={styles.quickChipRow}>
+                {QUICK_AMOUNTS.map(amt => {
+                  const active = Number(donationAmountInput) === amt;
+                  return (
+                    <TouchableOpacity
+                      key={amt}
+                      style={[
+                        styles.quickChip,
+                        active && styles.quickChipActive,
+                      ]}
+                      onPress={() => setDonationAmountInput(String(amt))}
+                      activeOpacity={0.75}
+                    >
+                      <Text
+                        style={[
+                          styles.quickChipText,
+                          active && styles.quickChipTextActive,
+                        ]}
+                      >
+                        ₹{amt.toLocaleString('en-IN')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.modalCancelBtn}
+                  onPress={() => setAmountModalVisible(false)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.modalProceedBtn}
+                  onPress={handleConfirmDonationAmount}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.modalProceedText}>Proceed</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
       </View>
     </AppLayout>
   );
@@ -741,6 +891,116 @@ const styles = StyleSheet.create({
     color: colors.primary || '#167A43',
     fontSize: 15,
     fontWeight: '600',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+  modalCard: {
+    backgroundColor: colors.white || '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text || '#121212',
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: colors.textSecondary || '#6B7280',
+    marginTop: 6,
+    marginBottom: 12,
+  },
+  modalInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    backgroundColor: '#F9FAFB',
+  },
+  modalRupee: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text || '#121212',
+    marginRight: 8,
+  },
+  modalInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text || '#121212',
+  },
+  quickChipRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 10,
+  },
+  quickChip: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+  },
+  quickChipActive: {
+    borderColor: colors.primary || '#167A43',
+    backgroundColor: '#F0FDF4',
+  },
+  quickChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary || '#6B7280',
+  },
+  quickChipTextActive: {
+    color: colors.primary || '#167A43',
+    fontWeight: '700',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 18,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCancelText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary || '#4B5563',
+  },
+  modalProceedBtn: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 10,
+    backgroundColor: colors.primary || '#167A43',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalProceedText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
 
