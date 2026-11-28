@@ -88,6 +88,7 @@ import DonationDetailsScreen from '../Screens/Donation/DonationDetailsScreen';
 import DonationFormScreen from '../Screens/Donation/DonationFormScreen';
 
 import ScholarshipFormView from '../Screens/ScholarshipScreen/ScholarshipFormView';
+import HigherEducationForm from '../Screens/ScholarshipScreen/HigherEducationForm';
 
 
 // Message details screen
@@ -966,6 +967,13 @@ const AuthNavigation = () => {
         name="ExecutiveMembersScreen"
         component={ExecutiveMembersScreen}
       />
+   <Stack.Screen
+        name="HigherEducationForm"
+        component={HigherEducationForm}
+      />
+
+
+      
 
       <Stack.Screen
         name="LocalSecretariesScreen"

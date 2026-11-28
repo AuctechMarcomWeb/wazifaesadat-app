@@ -21,7 +21,7 @@ import { widthPercentageToDP as wp } from 'react-native-responsive-screen';
 
 import colors from '../../themes/colors';
 import { FontFamily, FontSize } from '../../themes/typography';
-
+import InstructionsModal from './InstructionsModal';
 import AppLayout from '../../components/AppLayout/AppLayout';
 import BackHeader from '../../components/BackHeader/BackHeader';
 import {
@@ -65,6 +65,10 @@ const ScholarshipScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
+
+  // Instructions Modal State (for Registration Form)
+  const [instructionsVisible, setInstructionsVisible] = useState(false);
+  const [selectedScholarship, setSelectedScholarship] = useState(null);
 
   // Login Bottom Sheet Modal
   const [loginModal, setLoginModal] = useState(false);
@@ -150,6 +154,18 @@ const ScholarshipScreen = ({ navigation }) => {
     });
   };
 
+  const isRegistrationOpen = item => {
+    if (!item?.endDate) return false;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const endDate = new Date(item.endDate);
+    endDate.setHours(0, 0, 0, 0);
+
+    return today < endDate;
+  };
+
   // ================================================================
   // SEARCH
   // ================================================================
@@ -169,6 +185,36 @@ const ScholarshipScreen = ({ navigation }) => {
     });
   }, [data, search]);
 
+  // ================================================================
+  // INSTRUCTIONS MODAL HANDLERS (REGISTRATION FORM)
+  // ================================================================
+
+  const openInstructionsModal = useCallback(item => {
+    setSelectedScholarship(item || null);
+    setInstructionsVisible(true);
+  }, []);
+
+  const closeInstructionsModal = useCallback(() => {
+    setInstructionsVisible(false);
+    setSelectedScholarship(null);
+  }, []);
+
+  const handleInstructionsProceed = useCallback(
+    (applicantType, wazifaRecord) => {
+      const scholarshipInfo = selectedScholarship;
+
+      setInstructionsVisible(false);
+      setSelectedScholarship(null);
+
+      navigation.navigate('HigherEducationForm', {
+        courseType: 'Senior',
+        formType: applicantType,
+        wazifaRecord: wazifaRecord || null,
+        scholarship: scholarshipInfo,
+      });
+    },
+    [navigation, selectedScholarship],
+  );
   // ================================================================
   // OPEN / CLOSE LOGIN MODAL
   // ================================================================
@@ -263,17 +309,10 @@ const ScholarshipScreen = ({ navigation }) => {
       const token = loginResponse.data.authToken;
 
       // STEP 2: FETCH MY SCHOLARSHIP FORM
-      console.log('Fetching form with token and accountNo:', {
-        token: token.substring(0, 20) + '...',
-        accountNo: loginResponse.data.user.acountNo,
-      });
-      
       const formResponse = await getMyScholarshipForm(
         token,
         loginResponse.data.user.acountNo,
       );
-
-      console.log('Form Response:', formResponse);
 
       if (!formResponse?.success || !formResponse?.data) {
         throw new Error(formResponse?.message || 'Scholarship form not found.');
@@ -283,9 +322,13 @@ const ScholarshipScreen = ({ navigation }) => {
       setShowDobPicker(false);
       setLoginModal(false);
 
-      navigation.navigate('ScholarshipFormView', {
-        data: formResponse.data,
-        authToken: token,
+      // Extract submitted form data to prefill the form
+      const submittedData = formResponse.data;
+      
+      navigation.navigate('HigherEducationForm', {
+        courseType: submittedData?.courseType || 'Senior',
+        formType: 'Renewal', // Always treat downloaded forms as renewal mode (locked fields)
+        wazifaRecord: submittedData,
       });
     } catch (error) {
       console.log(
@@ -382,6 +425,16 @@ const ScholarshipScreen = ({ navigation }) => {
             <Text style={styles.deadlineDate}>{formatDate(item.endDate)}</Text>
           </View>
         </View>
+
+        {/* REGISTRATION FORM BUTTON -> OPENS INSTRUCTIONS MODAL */}
+        {isRegistrationOpen(item) && (
+          <GreenButton
+            title="Registration Form"
+            icon="file-document-edit-outline"
+            onPress={() => openInstructionsModal(item)}
+            style={styles.RegisterButton}
+          />
+        )}
 
         {/* DOWNLOAD FORM - OPEN LOGIN BOTTOM SHEET */}
         <GreenButton
@@ -607,28 +660,7 @@ const ScholarshipScreen = ({ navigation }) => {
                   tintColor={THEME.accent}
                 />
               }
-              ListHeaderComponent={
-                <View style={styles.searchWrap}>
-                  <SearchField
-                    placeholder="Search scholarship..."
-                    value={search}
-                    onChangeText={setSearch}
-                  />
-
-                  {search.length > 0 && (
-                    <TouchableOpacity
-                      style={styles.clearSearchBtn}
-                      onPress={() => setSearch('')}
-                    >
-                      <Icon
-                        name="close-circle"
-                        size={20}
-                        color={colors.secondary}
-                      />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              }
+        
               ListEmptyComponent={
                 <View style={[shared.empty, styles.emptyContainer]}>
                   <View style={styles.emptyIconCircle}>
@@ -649,6 +681,13 @@ const ScholarshipScreen = ({ navigation }) => {
             />
           )}
         </Body>
+
+        {/* INSTRUCTIONS MODAL FOR REGISTRATION FORM */}
+        <InstructionsModal
+          visible={instructionsVisible}
+          onClose={closeInstructionsModal}
+          onProceed={handleInstructionsProceed}
+        />
 
         {/* LOGIN BOTTOM SHEET */}
         {renderLoginModal()}
@@ -851,6 +890,14 @@ const styles = StyleSheet.create({
     height: 48,
     width: '100%',
     borderRadius: 12,
+  },
+
+  RegisterButton: {
+    height: 48,
+    width: '100%',
+    marginBottom: 5,
+    borderRadius: 12,
+    backgroundColor: '#64748B',
   },
 
   // Loading

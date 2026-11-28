@@ -2,7 +2,7 @@
  * Scholarship API Functions
  * WazifaESadat App
  */
-
+import axios from 'axios';
 import { createAxiosInstance } from './apiConfig';
 
 const api = createAxiosInstance('');
@@ -277,5 +277,134 @@ export const getTenureYears = async (
   } catch (error) {
     console.error('Error fetching tenure years:', error);
     throw error;
+  }
+};
+
+export const getScholarshipFormLookup = async accountNo => {
+  try {
+    if (!accountNo) {
+      throw new Error('Account number is required');
+    }
+
+    const response = await api.get(
+      `scholarshipForm/lookup/${encodeURIComponent(accountNo)}`,
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error(
+      'Scholarship Form Lookup Error:',
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+/**
+ * PUT /scholarshipForm/renew/:wazifaNo
+ */
+export const renewScholarshipForm = async (wazifaNo, payload) => {
+  try {
+    const response = await api.put(
+      `scholarshipForm/renew/${encodeURIComponent(wazifaNo)}`,
+      payload,
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error(
+      'Scholarship Renewal Error:',
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+export const createScholarshipForm = async payload => {
+  try {
+    const response = await api.post('scholarshipForm', payload);
+
+    return response.data;
+  } catch (error) {
+    console.error(
+      'Create Scholarship Form Error:',
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+export const uploadImage = async file => {
+  try {
+    // For React Native, we need to be careful with FormData
+    const formData = new FormData();
+
+    // Append file with proper structure for React Native
+    formData.append('file', {
+      uri: file.uri,
+      type: file.type || 'image/jpeg',
+      name: file.name || `image-${Date.now()}.jpg`,
+    });
+
+    console.log('📤 Starting upload:', {
+      name: file.name,
+      type: file.type,
+      uri: file.uri.substring(0, 50) + '...',
+    });
+
+    // Create a special instance for upload
+    const uploadInstance = axios.create({
+      baseURL: 'https://api.wazifaesadat.org/api',
+      timeout: 30000,
+    });
+
+    // Add auth token to upload request
+    uploadInstance.interceptors.request.use(
+      async config => {
+        try {
+          const token = await AsyncStorage.getItem('authToken');
+          if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+          }
+        } catch (err) {
+          console.log('Token fetch error:', err);
+        }
+        return config;
+      },
+      error => Promise.reject(error),
+    );
+
+    // Don't manually set Content-Type for FormData - let axios handle it
+    const response = await uploadInstance.post('/upload/uploadImage', formData);
+
+    console.log('📤 Upload response:', response.data);
+
+    if (response.data.success && response.data.data?.imageUrl) {
+      return {
+        success: true,
+        imageUrl: response.data.data.imageUrl,
+        message: response.data.message || 'Image uploaded successfully',
+      };
+    }
+    return {
+      success: false,
+      message: response.data.message || 'Upload failed',
+    };
+  } catch (error) {
+    console.error('❌ Upload error - Message:', error.message);
+    if (error.response) {
+      console.error('   Response data:', error.response.data);
+      console.error('   Response status:', error.response.status);
+    } else if (error.request) {
+      console.error('   No response received - Network error');
+      console.error('   Request URL:', error.config?.url);
+      console.error('   Request method:', error.config?.method);
+    }
+
+    return {
+      success: false,
+      message:
+        error.response?.data?.message || error.message || 'Upload failed',
+    };
   }
 };

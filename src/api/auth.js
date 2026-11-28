@@ -365,7 +365,7 @@ export const uploadImage = async file => {
 
     // Create a special instance for upload
     const uploadInstance = axios.create({
-      baseURL: 'http://192.168.1.9:9004/api',
+      baseURL: 'https://api.wazifaesadat.org/api',
       timeout: 30000,
     });
 
